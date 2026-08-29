@@ -5,6 +5,8 @@
   开场 override: "I'm looking for {cat}. {old_value}"
   开场 browsing: "I'm looking for {cat}, but I'm still exploring."
   改需求:        "Actually, ignore my earlier preference. What I need is: {v}."
+  改需求(兜底):  "Actually, please ignore my earlier preference."（评测器 behavior 无
+                 message 键时的备用句——无点名约束，只触发降权）
   吐约束:        "For that, what matters is: {c1}; {c2}."
   问干了:        "I don't have an additional preference for {attr}."
   boundary 挡:   "I don't have a preference for {attr}; please use your judgment."
@@ -51,16 +53,32 @@ def _add_constraint(state: DialogState, value: str, turn: int, hard: bool = True
     state.slots.append(Slot(attribute=attribute, value=value, hard=hard, turn_added=turn))
 
 
+def _promote_or_add(state: DialogState, value: str, turn: int) -> None:
+    """override 点名的约束：若早前已吐露入槽（降权后为软），重新提升为 hard；否则新增硬槽。
+
+    不能直接走 _add_constraint——它遇到重复值直接跳过，会让用户最强的信号停留在软权重
+    （bug 实录见 team/A-任务清单.md T1，public_0003 复现）。
+    """
+    cleaned = value.strip().rstrip(".")
+    for slot in state.slots:
+        if slot.value == cleaned:
+            slot.hard = True
+            return
+    _add_constraint(state, cleaned, turn, hard=True)
+
+
 def update_state(state: DialogState, message: str, turn: int) -> None:
     state.history.append({"turn": turn, "user": message})
     msg = message.strip()
 
-    # ---- 改需求（override）：旧槽位降权保留 + 新需求置顶 ----
-    if msg.startswith("Actually, ignore my earlier preference. What I need is:"):
-        state.scenario = "intent_override"
-        new_value = msg.split("What I need is:", 1)[1].strip()
+    # ---- 改需求（override）：旧槽位降权保留 + 点名约束提升/置入为 hard ----
+    # 宽松匹配：同时覆盖标准句、无点名约束的兜底句、以及轻度措辞变体
+    if msg.startswith("Actually") and "ignore my earlier preference" in msg:
+        state.scenario = "override"
         state.demote_preferences()
-        _add_constraint(state, new_value, turn, hard=True)
+        if "What I need is:" in msg:
+            new_value = msg.split("What I need is:", 1)[1].strip()
+            _promote_or_add(state, new_value, turn)
         return
 
     # ---- 吐约束 ----
