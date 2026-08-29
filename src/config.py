@@ -37,8 +37,17 @@ LLM_PARSE = os.environ.get("LLM_PARSE", "0") == "1"
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "20"))
+# 45 而非 20：实测 GLM-4.7-Flash 免费额度单次调用可达 21.5s，20s 超时会导致
+# 整轮实验静默降级到规则路径（C-T9 第 2 次复跑 tokens=0 即此故障）。
+LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
+# M3：LLM 精排的 prompt 形态（C-T9 对照实验）。
+#   basic    = 只喂标题+价格、上下文用 state.distilled（实验 4b/4c 的原版，已知负收益）
+#   evidence = 喂完整约束清单 + 逐候选的"命中了哪几条约束"证据
+# 目的：分离实验 4b 负收益的两个未分离原因——① LLM 看不到命中证据 ② 上下文太差。
+# 默认 evidence 而非 basic：basic 实测是**负收益**（-0.020），evidence 才是持平。
+# 万一有人开了 USE_LLM，不该让他拿到已知有害的那一版。
+LLM_PROMPT = os.environ.get("LLM_PROMPT", "evidence")
 
 # M3：热度先验权重（0 = 关闭）。依据：目标取自真实购买记录，真实购买集中在热门商品。
 # 停止准则（实验 10c）：取"三个难度桶齐涨"的最大值。w=2.0 时 easy/medium/hard 全涨；
