@@ -1,6 +1,9 @@
 # 会议演示手册（照着跑就行）
 
-> 会前准备：`cd NiuLai`，确认跑过 `python3 scripts/prepare_catalog.py`，终端字体调大。
+> ⚠️ 会前准备（缺一不可）：
+> 1. **所有命令都必须在仓库根目录跑**：`cd ~/workspace/Shopping\ Copilot/NiuLai`（在外层目录会报 `No module named 'evaluator'`）
+> 2. 确认跑过 `python3 scripts/prepare_catalog.py`（data/ 下有 catalog.jsonl）
+> 3. 终端字体调大、窗口拉宽（回放的 top-10 列表一行较长）
 > 全程 6 幕约 12 分钟。每幕 = 一条命令 + 预期输出 + 讲解词。所有数字都是确定性的，现场跑必然复现。
 
 ---
