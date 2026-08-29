@@ -52,9 +52,16 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
                 s += 4.0
             elif state.budget * 0.9 <= c["price"] <= state.budget * 1.1:
                 s += 0.5
+        # 先验轴（回答"哪件更可能是真人买的那一件"，而非"哪件更匹配这句话"）
         # 热度先验：log 压缩后归一化到 0..1（rating_number 跨度 0~10 万，线性会淹没约束信号）
         if config.POP_WEIGHT:
             s += config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
+        # has_price 先验：真实卖出去的商品才有价格数据（目标 89.0% vs 全目录 20.8%，且与热度独立）
+        if config.HAS_PRICE_WEIGHT and c.get("price") is not None:
+            s += config.HAS_PRICE_WEIGHT
+        # features 条数先验：目标商品的详情页更完整（中位数 8 条 vs 全目录 5 条）
+        if config.FEATURE_COUNT_WEIGHT:
+            s += config.FEATURE_COUNT_WEIGHT * min(c.get("feature_count", 0), 12) / 12.0
         s += 1.0 - (c.get("bm25_rank", total) / total)  # BM25 名次归一化到 0..1
         return s
 

@@ -35,8 +35,16 @@ LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "20"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
 
 # M3：热度先验权重（0 = 关闭）。依据：目标取自真实购买记录，真实购买集中在热门商品。
-# ⚠️ 分数随该值单调上升到 w=6，是过拟合信号——保守取 1~2，调高前先看 hard 分项。
-POP_WEIGHT = float(os.environ.get("POP_WEIGHT", "1.5"))
+# 停止准则（实验 9c）：取"三个难度桶齐涨"的最大值。w=2.0 时 easy/medium/hard 全涨；
+# w=3.0 时 easy 继续涨但 medium 掉（.825→.812）= 开始学公开集采样特征，故止步 2.0。
+POP_WEIGHT = float(os.environ.get("POP_WEIGHT", "2.0"))
+
+# M3：has_price 先验权重（0 = 关闭）。依据：目标商品 89.0% 有 price 字段，全目录仅 20.8%。
+# 与热度独立——低热度子集里全目录 has_price 20.2% 而目标 86.3%（差 66 个百分点）。
+HAS_PRICE_WEIGHT = float(os.environ.get("HAS_PRICE_WEIGHT", "1.0"))
+
+# M3：features 条数先验（实验 9b 已证伪：0.5 → 0.9176、1.0 → 0.9127，均低于不加）。保留开关供复现。
+FEATURE_COUNT_WEIGHT = float(os.environ.get("FEATURE_COUNT_WEIGHT", "0"))
 
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
