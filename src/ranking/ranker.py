@@ -37,6 +37,17 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         base = 2.0 if slot.hard else 0.75
         length_bonus = 1.0 + min(len(token), 60) / 30.0   # 长逐字片段 → 最高 3 倍
         weighted_tokens.append((token, base * length_bonus))
+        # 分片兜底（实验 15）：长规格串一旦被改写重组（"75% Polyester, 20% Rayon" →
+        # "20% Rayon, 75% Polyester"），整串匹配立刻失效，但每个成分仍逐字存在于商品全文里。
+        # 故对逗号分隔的多成分约束，额外登记各成分作为低权重匹配串。
+        # 权重低于整串是有依据的：部分命中本就是更弱的证据。
+        if config.FRAGMENT_WEIGHT:
+            parts = [p.strip() for p in slot.value.split(",")]
+            if len(parts) >= 2:
+                for part in parts:
+                    piece = constraint_match_token(part)
+                    if len(piece) >= 4 and piece != token:
+                        weighted_tokens.append((piece, base * config.FRAGMENT_WEIGHT))
 
     norm_category = normalize(state.category) if state.category else ""
 
