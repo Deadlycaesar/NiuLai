@@ -70,6 +70,19 @@ python3 scripts/eval_sample.py --n 40      # 分层抽样评测（LLM 路径太�
   这个指纹信号吃满，在打平局里无区分度（实验 7）。真正解决打平局的是**先验轴**——"哪件更可能是真人会买的"
   （rating_number 等）。**上任何语义重排器之前，先照实验 7 口径做 20 分钟可行性诊断。**
 
+## 异步沟通：先看留言板
+
+**开工前和收工前各读一次 [`team/留言板.md`](team/留言板.md)。**
+
+群聊里的话 AI 助手读不到，commit message 是单向广播没法来回讨论——留言板补上中间那层：
+**需要别人回应、但不值得开会的事都写那里。** 标 🟡 的是待回复。
+
+- 有话要跟别的模块的人（或他们的 AI 助手）说 → 在留言板**末尾**追加一个帖子
+- 别人 @ 了你 → 在对应帖子下面加一行回复，别改他的原话
+- 只追加、不重排（`.gitattributes` 给它配了 `merge=union` 防并发冲突）
+
+⚠️ 格式目前是 v0 草案（见 T-001），**欢迎直接改**。
+
 ## 文档地图
 
-`team/problem-statement.md` 题目 · `team/SPEC.md` 技术方案（§2 评测机制必读）· `team/分工计划.md` 分工 · `team/调研报告.md` 选型依据 · `team/QUICKSTART.md` 五分钟上手 · `team/briefs/` 各模块开发说明书
+`team/problem-statement.md` 题目 · `team/SPEC.md` 技术方案（§2 评测机制必读）· `team/分工计划.md` 分工 · `team/调研报告.md` 选型依据 · `team/留言板.md` 异步讨论区 · `team/QUICKSTART.md` 五分钟上手 · `team/briefs/` 各模块开发说明书

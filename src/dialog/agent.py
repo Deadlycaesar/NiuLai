@@ -21,10 +21,13 @@ class ShoppingAgent:
         self.sessions: dict[str, DialogState] = {}
 
     def reset(self, session_id: str, user_profile: dict) -> None:
-        self.sessions[session_id] = DialogState(
-            session_id=session_id,
-            profile=user_profile if isinstance(user_profile, dict) else {},
-        )
+        # ⚠️ 评测器只保护 respond()；reset() 抛异常 = 整场评测直接崩（不是记 miss）。
+        # 本方法与构造函数一样，必须绝对不抛（T4，见 team/A-任务清单.md）。
+        try:
+            profile = user_profile if isinstance(user_profile, dict) else {}
+            self.sessions[session_id] = DialogState(session_id=session_id, profile=profile)
+        except Exception:
+            self.sessions[session_id] = DialogState(session_id=str(session_id), profile={})
 
     def respond(self, session_id: str, user_message: str, turn: int, top_k: int) -> dict:
         state = self.sessions.get(session_id)
@@ -34,12 +37,17 @@ class ShoppingAgent:
         try:
             return self._respond(state, user_message, turn, top_k)
         except Exception:
-            # 兜底：宁可返回上一轮的最优推荐，也绝不空转一轮
+            # 兜底：宁可返回上一轮的最优推荐，也绝不空转一轮。
+            # usage 仍须结算（C 的计量口径）：异常轮已产生的 LLM token 不能漏到下一轮
+            try:
+                usage = llm_client.pop_usage()
+            except Exception:
+                usage = {"prompt_tokens": 0, "completion_tokens": 0}
             return {
                 "message": "Here are the closest matches I found.",
                 "ask_attribute": "other",
                 "recommendations": [{"parent_asin": pid} for pid in state.last_ranked],
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0},
+                "usage": usage,
             }
 
     def _respond(self, state: DialogState, user_message: str, turn: int, top_k: int) -> dict:

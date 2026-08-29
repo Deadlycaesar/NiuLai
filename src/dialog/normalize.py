@@ -4,13 +4,16 @@
 180 字符上限、约 6% 内嵌 "; "、约 1/8 是 "Key: value" 形态。下游（B 检索 / C 排序）
 只消费本模块产出的 Slot.terms，不接触文案的脏。
 
-为什么 terms 目前每槽只有一个词（对抗审查实测，2026-08-29）：
+变体准入史（对抗审查实测，2026-08-29）：
 在本评测器的意图卡生成机制下，全文归一化串对目标商品 norm_text **零失配**
 （3000 商品 / 11793 条约束实测，含全部 180 字符截断与内嵌分号形态——normalize
 的标点折叠与评测器 searchable_text 的 "key value" 拼接同构，截断前缀天然是子串）。
-因此"键值剥离"等增加匹配机会的变体救不了目标，只会给混淆项送分
-（最恶劣如 'Department: mens' → 'mens'，子串命中全库 92.5%，含所有 womens 商品）。
-今后若为应对"私有集内联改写卡"加变体，必须带护栏：长度 ≥5 且词边界匹配。
+- ❌ "键值剥离"变体：救不了目标、只给混淆项送分（最恶劣如 'Department: mens' →
+  'mens'，子串命中全库 92.5%，含所有 womens 商品），永不启用。
+- ✅ 逗号分片变体（C-T8 迁移入本接口）：应对改写重组规格串（"75% Polyester, 20%
+  Rayon" → 反序）——整串失配时各成分仍逐字存在。护栏：片段 ≥5 字符；消费端
+  max-len 规则保证整串命中时分片不重复计分。C 实测与独立通道等价（±0.004 噪声带）。
+新变体准入标准不变：长度 ≥5 + 有"救得了目标"的实证，缺一不发。
 
 消费约定（SPEC §5）：同槽多 term 取命中的最长者计权、不重复计分；
 **空列表 = 本槽不参与文本匹配**（budget 槽即如此，价格信号走 state.budget）。
@@ -19,6 +22,8 @@
 from __future__ import annotations
 
 import re
+
+from src import config
 
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
@@ -29,7 +34,7 @@ def normalize(text: str) -> str:
 
 
 def constraint_terms(value: str) -> list[str]:
-    """一条约束原文 → 归一化检索词列表。空列表 = 本槽不参与文本匹配。"""
+    """一条约束原文 → 归一化检索词列表（判别力降序）。空列表 = 本槽不参与文本匹配。"""
     full = normalize(value)
     if not full or full.startswith("budget"):
         return []
@@ -38,5 +43,16 @@ def constraint_terms(value: str) -> list[str]:
     # 冒号前带空格等其他形态不剥（它们的全串在商品文本里逐字存在，剥了反而丢判别力）
     if value.lower().startswith("color:"):
         stripped = normalize(value.split(":", 1)[1])
-        return [stripped] if stripped else []
-    return [full]
+        terms = [stripped] if stripped else []
+    else:
+        terms = [full]
+    # 逗号分片变体（C-T8，实验 16 系；FRAGMENT_WEIGHT=0 时关闭 = 消融口径，
+    # 权重数值本身不再使用——消费端 max-len 计权，整串命中时分片自然让位）
+    if terms and config.FRAGMENT_WEIGHT:
+        parts = [p.strip() for p in value.split(",")]
+        if len(parts) >= 2:
+            for part in parts:
+                piece = normalize(part)
+                if len(piece) >= 5 and piece not in terms:
+                    terms.append(piece)
+    return terms

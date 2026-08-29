@@ -69,9 +69,10 @@ PRIOR_DECAY = float(os.environ.get("PRIOR_DECAY", "0"))
 # 排序几乎完全由先验决定——单独给它一个倍率，与后续轮解耦。
 EARLY_PRIOR_BOOST = float(os.environ.get("EARLY_PRIOR_BOOST", "1.0"))
 
-# M3：长约束的分片匹配权重（0 = 关闭，只匹配整串）。
+# M1：长约束的逗号分片变体开关（0 = 关闭 = 消融口径，只匹配整串）。
 # 动机：改写会重组逗号分隔的规格串（"75% Polyester, 20% Rayon" → 反序），整串匹配失效，
-# 但各成分仍逐字存在于商品全文里。分片权重应低于整串——部分命中是更弱的证据。
+# 但各成分仍逐字存在于商品全文里。已从 ranker 的独立加分通道迁入 constraint_terms
+#（Slot.terms 接口，片段 ≥5 字符护栏；消费端 max-len 计权，权重数值本身不再使用）。
 FRAGMENT_WEIGHT = float(os.environ.get("FRAGMENT_WEIGHT", "0.8"))
 
 # budget 约束的价格窗口（±比例）
