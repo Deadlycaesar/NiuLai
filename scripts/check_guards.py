@@ -53,7 +53,9 @@ def ok(check: str, detail: str = "") -> None:
 
 
 def sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # 指纹前把 CRLF 归一化为 LF：Windows 队友 core.autocrlf=true 时工作区是 CRLF，
+    # 而基线指纹在 LF 机器上生成——不归一化会对未改动的官方文件误报红线（git 索引里仍是 LF）。
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 # ---------- 红线 1 & 3：官方文件零改动 ----------

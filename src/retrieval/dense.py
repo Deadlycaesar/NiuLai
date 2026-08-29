@@ -11,12 +11,18 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from src import config
 
 # bge 查询侧指令前缀（spec §1-④）：查询编码时必须加，商品侧（预计算）不加
 QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+
+
+def _warn(reason: str) -> None:
+    """USE_DENSE=1 但资产缺失时显式降级——防"以为开了稠密路其实跑的纯 BM25"（留言板 T-004）。"""
+    print(f"[M2] USE_DENSE=1 但稠密路未生效（{reason}），本场为纯 BM25。", file=sys.stderr)
 
 
 class DenseIndex:
@@ -30,10 +36,11 @@ class DenseIndex:
     def from_env(cls) -> "DenseIndex | None":
         """按 spec §1-⑦ 做全链路降级：任何资产缺失都返回 None，绝不抛给上层。"""
         if not config.USE_DENSE:
-            return None
+            return None  # 用户没开 = 静默；开了却降级才需要警告
         try:
             path = Path(config.EMBEDDINGS_PATH)
             if not path.exists():
+                _warn(f"npz 缺失：{path}")
                 return None
             import numpy as np
             from sentence_transformers import SentenceTransformer
@@ -43,7 +50,8 @@ class DenseIndex:
             data = np.load(path, allow_pickle=False)
             model = SentenceTransformer(config.EMBED_MODEL, device="cpu")
             return cls(asins=data["asins"], matrix=data["matrix"], model=model)
-        except Exception:
+        except Exception as exc:
+            _warn(f"{type(exc).__name__}: {exc}")
             return None
 
     def search(self, query_text: str, top_k: int) -> list[tuple[str, float]]:
