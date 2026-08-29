@@ -123,10 +123,17 @@ def check_entry_imports() -> None:
 
 # ---------- 红线 3：密钥扫描 ----------
 def iter_scan_files():
-    for path in ROOT.rglob("*"):
+    # 只扫 git 跟踪的文件：推得出去的才可能泄漏。未跟踪的 .env 是 key 的合法居所
+    # （gitignored、永不入库），对它报"入库"是误报——狼来了会让人对 FAIL 麻木。
+    # ".env 被意外跟踪"由 check_env_not_tracked 专门守着，两道闸互补。
+    result = subprocess.run(["git", "ls-files"], capture_output=True, text=True, cwd=ROOT)
+    for name in result.stdout.splitlines():
+        if not name:
+            continue
+        path = ROOT / name
         if not path.is_file():
             continue
-        if any(part in SECRET_SKIP_DIRS for part in path.relative_to(ROOT).parts):
+        if any(part in SECRET_SKIP_DIRS for part in Path(name).parts):
             continue
         if path.suffix in SECRET_EXTS or path.name == ".env":
             yield path
