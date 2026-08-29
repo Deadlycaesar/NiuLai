@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import re
 
-from src.dialog.normalize import constraint_terms
+from src import config
+from src.dialog.normalize import constraint_terms, normalize
 from src.dialog.state import DialogState, Slot
+from src.ranking import llm_client
 
 # 与评测器 classify_constraint 保持一致的镜像分类器（不 import evaluator，避免循环依赖）
 _MATERIALS = ("cotton", "polyester", "nylon", "leather", "wool", "spandex", "silk", "rayon", "fabric")
@@ -223,6 +225,7 @@ def _salvage(state: DialogState, message: str, turn: int) -> None:
     if _OVERRIDE_HINT.search(message):
         state.scenario = "override"
         state.demote_preferences()
+        promoted = 0
         match = _OVERRIDE_PAYLOAD.search(message)
         if match:
             payload = match.group("payload").strip().strip(" .\"'")
@@ -230,6 +233,11 @@ def _salvage(state: DialogState, message: str, turn: int) -> None:
                 fragment = fragment.strip().strip(" .,;:!?\"'—–")
                 if _is_useful(fragment):
                     _promote_or_add(state, fragment, turn)
+                    promoted += 1
+        if not promoted:
+            # 改需求信号命中但"新需求"载荷没捞到（改写把它藏进了规则盖不住的句型）
+            # → 第三层上。LLM 失败也无妨：降权已完成，语义主体保住了。
+            _llm_extract(state, message, turn)
         return
 
     # ② 粗品类——只在还没拿到时抽取（开场轮）。品类精确命中在 ranker 里值 +2.5。
@@ -244,4 +252,70 @@ def _salvage(state: DialogState, message: str, turn: int) -> None:
     payload = _payload_after_colon(message)
     if payload and _add_fragments(state, payload, turn, hard=False):
         return
+    # ③.5 第三层防线：LLM 逐字片段抽取（LLM_PARSE 开关，默认关）。
+    # 只在冒号载荷这条高命中规则也落空、即将退回"整句切分"最弱路径时才触发——
+    # 实验 16a 定位"脆的是片段抽取不是语义"，LLM 在这里干的就是边界检测。
+    if _llm_extract(state, message, turn):
+        return
     _add_fragments(state, message, turn, hard=False)
+
+
+# ===========================================================================
+# 第三层防线：LLM 逐字片段抽取（A，T-LLM；默认关，纯增强）
+# ===========================================================================
+# 设计约束（与 _salvage 同一条保证链）：
+#   1. 公开集构造性零触发——严格模板命中就 return，走不到这里；
+#   2. 逐字指纹不可破坏——LLM 只做"从消息里抄出片段"，每条产出强制过 verbatim
+#      校验（归一化后必须是原消息的连续子串），改写/编造一律丢弃；
+#   3. 离线不掉档——无 key 秒返 None；网络故障连续 2 次熔断，此后行为 = 纯规则。
+
+_PARSE_SYSTEM = (
+    "You extract shopping intent from one customer message. The message may embed "
+    "verbatim product-attribute phrases (materials, specs, features, colors). "
+    'Reply with json only: {"category": string|null, "override": boolean, '
+    '"constraints": [string, ...]}. RULES: each constraint MUST be an exact '
+    "contiguous substring copied character-for-character from the message — never "
+    "rephrase, translate, or merge; at most 4 constraints; category is the product "
+    "type being sought (short noun phrase from the message) or null; override is "
+    "true ONLY if the customer discards their earlier stated preference."
+)
+
+_llm_parse_failures = 0  # 连续失败计数；≥2 熔断（进程生命周期内不再尝试）
+
+
+def _llm_extract(state: DialogState, message: str, turn: int) -> bool:
+    """返回 True = LLM 成功应答并接管本消息的抽取（包括'确认无约束'的空判定——
+    此时跳过整句切分，避免垃圾碎片入槽）；False = 未启用/熔断/调用失败，规则接续。"""
+    global _llm_parse_failures
+    if not config.LLM_PARSE or _llm_parse_failures >= 2:
+        return False
+    reply = llm_client.chat_json(_PARSE_SYSTEM, message, max_tokens=200)
+    if reply is None:
+        _llm_parse_failures += 1
+        return False
+    _llm_parse_failures = 0
+    norm_message = normalize(message)
+    is_override = reply.get("override") is True
+    if is_override:
+        state.scenario = "override"
+        state.demote_preferences()
+    category = reply.get("category")
+    if not state.category and isinstance(category, str):
+        category = category.strip(" .,;:!?\"'—–")
+        # 品类同样过 verbatim 校验 + 口水词过滤
+        if _is_useful(category) and normalize(category) in norm_message:
+            state.category = category
+    constraints = reply.get("constraints")
+    if isinstance(constraints, list):
+        for item in constraints[:4]:
+            if not isinstance(item, str):
+                continue
+            fragment = item.strip().strip(" .,;:!?\"'—–")
+            # verbatim 校验：拒绝一切改写（指纹信号 > LLM 的语言品味）
+            if not _is_useful(fragment) or normalize(fragment) not in norm_message:
+                continue
+            if is_override:
+                _promote_or_add(state, fragment, turn)
+            else:
+                _add_constraint(state, fragment, turn, hard=False)
+    return True

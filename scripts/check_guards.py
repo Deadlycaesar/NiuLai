@@ -123,10 +123,17 @@ def check_entry_imports() -> None:
 
 # ---------- 红线 3：密钥扫描 ----------
 def iter_scan_files():
-    for path in ROOT.rglob("*"):
+    # 只扫 git 跟踪的文件：推得出去的才可能泄漏。未跟踪的 .env 是 key 的合法居所
+    # （gitignored、永不入库），对它报"入库"是误报——狼来了会让人对 FAIL 麻木。
+    # ".env 被意外跟踪"由 check_env_not_tracked 专门守着，两道闸互补。
+    result = subprocess.run(["git", "ls-files"], capture_output=True, text=True, cwd=ROOT)
+    for name in result.stdout.splitlines():
+        if not name:
+            continue
+        path = ROOT / name
         if not path.is_file():
             continue
-        if any(part in SECRET_SKIP_DIRS for part in path.relative_to(ROOT).parts):
+        if any(part in SECRET_SKIP_DIRS for part in Path(name).parts):
             continue
         if path.suffix in SECRET_EXTS or path.name == ".env":
             yield path
@@ -196,6 +203,107 @@ def check_smoke(n: int) -> None:
     ok(f"冒烟 {n} sessions 通过", f"score={score:.4f}")
 
 
+# ---------- 测试收集完整性：写了却没被跑到的用例 ----------
+def check_tests_collected() -> None:
+    """比对 tests/ 里定义的用例数 vs `unittest discover` 实际收集到的数量。
+
+    起因（2026-08-30）：tests/test_stability.py 用 pytest 风格写（模块级 `def test_*(tmp_path)`），
+    但本项目零第三方依赖、用 stdlib unittest，discover 只收集 TestCase 子类——
+    结果 5 个稳定性用例一次都没被执行过，而且没有任何报错。
+    这条护栏让同类问题当场暴露，而不是等到正式评测时才发现"测过"的东西其实没测。
+    """
+    import unittest
+
+    tests_dir = ROOT / "tests"
+    if not tests_dir.exists():
+        return
+
+    defined = 0
+    for path in sorted(tests_dir.glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            # TestCase 子类里的 test_* 方法，或模块级 test_* 函数（pytest 风格）
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+                defined += 1
+
+    suite = unittest.defaultTestLoader.discover(str(tests_dir), top_level_dir=str(ROOT))
+    collected = suite.countTestCases()
+
+    if collected < defined:
+        fail(
+            "有测试用例写了但没被执行",
+            f"tests/ 里定义了 {defined} 个 test_* 用例，unittest discover 只收集到 {collected} 个",
+            "多半是 pytest 风格（模块级 def test_*(fixture)）——本项目零第三方依赖，"
+            "用例必须写成 unittest.TestCase 的方法才会被跑到",
+        )
+    else:
+        ok("测试用例全部可被收集", f"定义 {defined} / 收集 {collected}")
+
+
+# ---------- 留言板：把待回复的帖子推到人眼前 ----------
+# git 身份 → 留言板上的称呼。同一个人可能有多个 git 配置（不同机器/邮箱）。
+_BOARD_IDENTITY = {
+    "chen zhilong": "陈智龙", "project-dragon7": "陈智龙", "2668767311@qq.com": "陈智龙",
+    "bestbucky": "BestBucky", "biyongqi@outlook.com": "BestBucky",
+    "lin xiaoxiao": "C", "lyx": "C",
+    "89674854@qq.com": "周峻恺", "unknown": "周峻恺",
+}
+
+
+def _whoami() -> str | None:
+    """从 git 配置猜当前是谁，用来高亮"在等你回复"的帖子。猜不到就不高亮。"""
+    for key in ("user.name", "user.email"):
+        value = subprocess.run(["git", "config", key], capture_output=True, text=True, cwd=ROOT)
+        name = _BOARD_IDENTITY.get((value.stdout or "").strip().lower())
+        if name:
+            return name
+    return None
+
+
+def check_board() -> None:
+    """列出留言板上 🟡 待回复的帖子。**永远不会让自检失败**——只是把它推到眼前。
+
+    起因：留言板建起来了但没人回，而大家不会主动去 git pull 之后翻文件。
+    这条挂在推代码前必跑的自检里，就不需要谁记得。
+    """
+    board = ROOT / "team" / "留言板.md"
+    if not board.exists():
+        return
+    me = _whoami()
+    open_threads: list[tuple[str, str]] = []
+    for line in board.read_text(encoding="utf-8").splitlines():
+        # 排除"帖子格式"示例里的 T-00X 占位
+        if line.startswith("### [T-") and "🟡" in line and "[T-00X]" not in line:
+            title = line[4:].split(" · 🟡")[0].strip()
+            # 帖子标题下一行才是收件人，这里直接从标题里找不到，退而扫全文的 @ 提及
+            open_threads.append((title, line))
+    if not open_threads:
+        ok("留言板无待回复帖子")
+        return
+
+    # 找出每个 🟡 帖子的收件人（帖子标题后第一行的 **发起** X → **@Y**）
+    text = board.read_text(encoding="utf-8")
+    detail: list[str] = []
+    mine = 0
+    for title, _ in open_threads:
+        block = text.split("### [" + title.split("]")[0][1:] + "]", 1)
+        header = ""
+        idx = text.find("### [" + title[1:].split("]")[0] + "]")
+        if idx != -1:
+            header = text[idx: idx + 400].split("\n")[1] if "\n" in text[idx:] else ""
+        to = header.split("**@")[1].split("**")[0] if "**@" in header else "全体"
+        flag = ""
+        if me and (me in to or "全体" in to):
+            flag = "  ← 在等你"
+            mine += 1
+        detail.append(f"{title}  → @{to}{flag}")
+
+    notes.append("留言板有 %d 个 🟡 待回复%s：" % (len(open_threads), f"（其中 {mine} 个在等你）" if mine else ""))
+    for line in detail:
+        notes.append("         " + line)
+    notes.append("         → 打开 team/留言板.md，在对应帖子下加一行 `- **回复 @你**：…`")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="提交前护栏自检")
     parser.add_argument("--write-baseline", action="store_true",
@@ -209,6 +317,8 @@ def main() -> int:
     check_entry_imports()
     check_secrets()
     check_env_not_tracked()
+    check_tests_collected()
+    check_board()
     if args.smoke:
         check_smoke(args.smoke)
 

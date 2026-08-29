@@ -28,11 +28,26 @@ CANDIDATE_POOL = int(os.environ.get("CANDIDATE_POOL", "300"))
 
 # M3：是否启用 LLM 增强路径（离线降级是硬要求，默认关）
 USE_LLM = os.environ.get("USE_LLM", "0") == "1"
+
+# M1：LLM 兜底解析（第三层防线：严格模板 → 规则载荷抽取 → LLM 逐字片段抽取）。
+# 只在前两层落空、salvage 即将退回"整句切分"最弱路径时触发；LLM 产出强制过
+# verbatim 校验（归一化后必须是原消息子串），确保不破坏逐字指纹信号。
+# 默认关；开着但无 key/断网时两次失败即熔断，行为与纯规则路径一致。
+LLM_PARSE = os.environ.get("LLM_PARSE", "0") == "1"
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "20"))
+# 45 而非 20：实测 GLM-4.7-Flash 免费额度单次调用可达 21.5s，20s 超时会导致
+# 整轮实验静默降级到规则路径（C-T9（实验 25a）第 2 次复跑 tokens=0 即此故障）。
+LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
+# M3：LLM 精排的 prompt 形态（C-T9 对照实验）。
+#   basic    = 只喂标题+价格、上下文用 state.distilled（实验 4b/4c 的原版，已知负收益）
+#   evidence = 喂完整约束清单 + 逐候选的"命中了哪几条约束"证据
+# 目的：分离实验 4b 负收益的两个未分离原因——① LLM 看不到命中证据 ② 上下文太差。
+# 默认 evidence 而非 basic：basic 实测是**负收益**（-0.020），evidence 才是持平。
+# 万一有人开了 USE_LLM，不该让他拿到已知有害的那一版。
+LLM_PROMPT = os.environ.get("LLM_PROMPT", "evidence")
 
 # M3：热度先验权重（0 = 关闭）。依据：目标取自真实购买记录，真实购买集中在热门商品。
 # 停止准则（实验 10c）：取"三个难度桶齐涨"的最大值。w=2.0 时 easy/medium/hard 全涨；
@@ -74,6 +89,17 @@ EARLY_PRIOR_BOOST = float(os.environ.get("EARLY_PRIOR_BOOST", "1.0"))
 # 但各成分仍逐字存在于商品全文里。已从 ranker 的独立加分通道迁入 constraint_terms
 #（Slot.terms 接口，片段 ≥5 字符护栏；消费端 max-len 计权，权重数值本身不再使用）。
 FRAGMENT_WEIGHT = float(os.environ.get("FRAGMENT_WEIGHT", "0.8"))
+
+# M3：意图卡镜像一致性 bonus（0 = 关闭）。依据（实验 22）：评测器意图卡由候选自身
+# 元数据确定性生成、77.6% 全局唯一——"槽位值命中候选自身的镜像卡条目"是比裸子串
+# 更强的一致性证据。权重 ≥1.0 恒定收敛（真二元判别器，同 has_price 形态）。
+MIRROR_BONUS = float(os.environ.get("MIRROR_BONUS", "1.0"))
+
+# M2：逐约束短语召回路（0 = 关闭）。依据（实验 22）：OR-token 大池会把"全样板约束 +
+# 超冷门"目标挤出 top-300（public_0020 唯一 miss 的死因）；≥3 token 槽位值的 FTS5
+# 短语查询子池极小、目标必进池。追加候选的 BM25 名次分记 0（子池归一化，与之捆绑）。
+PHRASE_RECALL = os.environ.get("PHRASE_RECALL", "1") == "1"
+PHRASE_TOP_K = int(os.environ.get("PHRASE_TOP_K", "50"))
 
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
