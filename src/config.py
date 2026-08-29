@@ -52,7 +52,14 @@ FEATURE_COUNT_WEIGHT = float(os.environ.get("FEATURE_COUNT_WEIGHT", "0"))
 EARLY_TOPK = int(os.environ.get("EARLY_TOPK", "1"))
 # 应用 EARLY_TOPK 的轮次上限。停止准则（实验 11a）：TURNS=2 三桶齐涨且 miss 不变；
 # TURNS=3 时 easy hit 掉 .988→.975、medium hit 掉 1.000→.989、miss 1→3 = 拐点。
-EARLY_TURNS = int(os.environ.get("EARLY_TURNS", "2"))
+EARLY_TURNS = int(os.environ.get("EARLY_TURNS", "3"))
+
+# M3：收窄的触发条件。
+#   hybrid（默认）= 槽位不足【且】未超轮次上限。兼顾自适应与安全出口。
+#   turns  = 只看轮次；slots = 只看槽位数（⚠️ 私有集解析失败时会永远收窄，实测可崩到 0.9318）。
+# 公开集上 hybrid / turns / slots(MIN_SLOTS=4) 三者同为 0.9620，选 hybrid 是为私有集鲁棒性。
+EARLY_MODE = os.environ.get("EARLY_MODE", "hybrid")
+EARLY_MIN_SLOTS = int(os.environ.get("EARLY_MIN_SLOTS", "4"))  # slots 模式：槽位少于此数就收窄
 
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
