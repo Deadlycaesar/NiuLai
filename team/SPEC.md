@@ -1,6 +1,6 @@
 # Shopping Copilot — 技术方案 Spec（v0.1 讨论稿）
 
-> 状态：**讨论稿**，供 5 人组第一次对齐会使用。定稿前不开发。
+> 状态：开发中。**§5 接口已于 2026-08-29 定稿**（按 M1 打样代码现状核定）；其余章节仍为讨论稿。
 > 配套文档：[problem-statement.md](problem-statement.md)（题目精简版）、[分工计划.md](分工计划.md)
 > 事实来源：官方仓库 https://github.com/TechJam2026/techjam-conversational-search （README、docs/competition_specification.md、docs/agent_api_contract.json、evaluator 源码）
 
@@ -126,30 +126,46 @@ flowchart LR
 
 ---
 
-## 5. 内部接口约定（模块间契约，定稿后不许随意改）
+## 5. 内部接口约定（模块间契约，**2026-08-29 定稿**——改动需群里喊 + 改本节 + 全员知悉）
+
+> 定稿依据：M1 打样代码的实际运行形态（比 v0.1 草案合理的三处修正：检索需要当轮原始消息；
+> 排序返回完整候选而非裸 asin；提问策略归 M1，M3 的 clarify 只生成文案）。
 
 ```python
 @dataclass
 class Slot:
     attribute: str      # ask_attribute 枚举之一
-    value: str
-    hard: bool          # 硬约束(过滤) or 软偏好(加权)
+    value: str          # 约束原文（评测器逐字吐出；排序靠逐字命中，绝不改写）
+    hard: bool          # 硬约束(过滤/强加权) or 软偏好(仅加权)
     turn_added: int
+    terms: list[str] = field(default_factory=list)
+                        # 归一化检索词（A 产出：内嵌分号切分、"Key: value" 剥离），
+                        # B/C 直接消费，不用碰文案的脏；空列表则回退用 value
 
 @dataclass
 class DialogState:
     session_id: str
     profile: dict               # 官方 user_profile 原样
-    slots: list[Slot]           # 当前生效约束（Override 时整理重建）
+    slots: list[Slot]           # 当前生效约束（Override 时降权保留，不删除）
     asked: set[str]             # 已问过的属性
+    exhausted: set[str]         # 用户明说"没有更多偏好"的属性
+    all_disclosed: bool         # other 已问干（意图卡约束全部拿到）
+    category: str               # 开场句 "I'm looking for X" 的 X（粗品类）
     scenario: str               # buying / browsing / override / boundary / unknown
+    budget: float | None        # "budget around $X" 解析出的 X（公开集几乎不出现）
     history: list[dict]         # 原始轮次记录
     distilled: str              # M4 产出的紧凑上下文
+    last_ranked: list[str]      # 上一轮 top-10（异常兜底返回用）
 
-# M2: def retrieve(state: DialogState, k: int = 100) -> list[Candidate]
-#     Candidate = {parent_asin, title, price, categories, details, route_scores: dict}
-# M3: def rank(state, candidates, k=10) -> list[str]            # 排好序的 parent_asin
-#     def clarify(state, candidates) -> tuple[str, str | None]  # (message, ask_attribute)
+# M2 (B): Retriever(catalog_path)  # 构造时建索引，启动一次
+#         .retrieve(state, user_message, k=100) -> list[Candidate]
+#         Candidate = dict，必含: parent_asin / title / price / color / material /
+#                     norm_text / coarse_cat / bm25_rank / match_count
+#                     （M1 提问策略与 M3 排序依赖这些字段；加字段随意，删改打招呼）
+# M3 (C): rank(state, candidates, k=10) -> list[Candidate]   # 排好序的完整候选
+#         clarify(state, ask_attribute) -> str               # 只生成 message 文案
+# M1 (A): policy.choose_ask(state, candidates) -> str        # 提问策略归 A，永不返回 None
+# M4 (D): distill(state) -> str                              # 写回 state.distilled
 ```
 
 ---
