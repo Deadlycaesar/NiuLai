@@ -163,7 +163,9 @@ class DialogState:
 #                     norm_text / coarse_cat / bm25_rank / match_count
 #                     （M1 提问策略与 M3 排序依赖这些字段；加字段随意，删改打招呼）
 # M3 (C): rank(state, candidates, k=10) -> list[Candidate]   # 排好序的完整候选
-#         clarify(state, ask_attribute) -> str               # 只生成 message 文案
+#         clarify(state, ask_attribute, top=None) -> str     # 只生成 message 文案
+#                     top = 本轮排好序的候选（rank() 的返回值），可选；
+#                     不传则退化为不提商品名的版本，旧调用方不会坏（2026-08-29 追加）
 # M1 (A): policy.choose_ask(state, candidates) -> str        # 提问策略归 A，永不返回 None
 # M4 (D): distill(state) -> str                              # 写回 state.distilled
 ```
