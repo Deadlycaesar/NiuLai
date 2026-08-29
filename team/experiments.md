@@ -55,6 +55,8 @@
 
 | 20 | 08-30 | **A-T4 稳定性硬化 + 分片迁移落地**（terms 接口独占，收掉 ranker 独立通道 = #19 的迁移执行；另修异常轮 usage 漏记）| L0 **0.96205**（逐会话 0/200）| 0.995 | 0.964 | 2.24 | L1 0.9455 / L2 0.9149 / L3 0.8878——与 #19 terms 变体列逐位一致。T4：reset()/Retriever 构造进防御圈（评测器只保护 respond，构造崩 = 整场零分）、坏 catalog 行跳过计数、7 项畸形输入契约测试（tests/test_stability.py）。USE_DENSE=1 叠加复验：0.96205 持平——稠密路在当前基线的 L0 已无增量，价值仅剩召回保险与叙事 |
 
+| 21 | 08-30 | **测试收集完整性缺陷**（非评分项，工程质量）：`tests/test_stability.py`（A 的 T4，88 行 5 个用例）用 pytest 风格写（模块级 `def test_*(tmp_path)`），而项目零第三方依赖、用 stdlib unittest —— `discover` 只收集 `TestCase` 子类，**这 5 个用例一次都没被执行过且无任何报错** | — | — | — | — | 手动按 pytest 约定逐个调起验证：**5 个断言逻辑全部通过**，A 的硬化本身正确，问题只在收集不到。已改写为 `unittest.TestCase`（语义逐条保留），`discover` 从 15 → **20 tests 全过**；并给 `check_guards.py` 加护栏"定义用例数 vs 收集用例数"，拿修复前版本验证会报 FAIL。**这类 bug 比功能 bug 危险——它让人以为测过了** |
+
 ## 已知残留问题（提分方向）
 
 - 剩余 3 个 miss 的意图卡全是泛化约束（"cotton"+"Imported" 类），预算未进卡——判别信号不足，需要 profile 软偏好（M4）兜住尾部。（实验 6b 后 Recall@100 已 1.000，miss 全是排序层问题）

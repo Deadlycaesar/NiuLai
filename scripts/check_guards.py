@@ -196,6 +196,43 @@ def check_smoke(n: int) -> None:
     ok(f"冒烟 {n} sessions 通过", f"score={score:.4f}")
 
 
+# ---------- 测试收集完整性：写了却没被跑到的用例 ----------
+def check_tests_collected() -> None:
+    """比对 tests/ 里定义的用例数 vs `unittest discover` 实际收集到的数量。
+
+    起因（2026-08-30）：tests/test_stability.py 用 pytest 风格写（模块级 `def test_*(tmp_path)`），
+    但本项目零第三方依赖、用 stdlib unittest，discover 只收集 TestCase 子类——
+    结果 5 个稳定性用例一次都没被执行过，而且没有任何报错。
+    这条护栏让同类问题当场暴露，而不是等到正式评测时才发现"测过"的东西其实没测。
+    """
+    import unittest
+
+    tests_dir = ROOT / "tests"
+    if not tests_dir.exists():
+        return
+
+    defined = 0
+    for path in sorted(tests_dir.glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            # TestCase 子类里的 test_* 方法，或模块级 test_* 函数（pytest 风格）
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+                defined += 1
+
+    suite = unittest.defaultTestLoader.discover(str(tests_dir), top_level_dir=str(ROOT))
+    collected = suite.countTestCases()
+
+    if collected < defined:
+        fail(
+            "有测试用例写了但没被执行",
+            f"tests/ 里定义了 {defined} 个 test_* 用例，unittest discover 只收集到 {collected} 个",
+            "多半是 pytest 风格（模块级 def test_*(fixture)）——本项目零第三方依赖，"
+            "用例必须写成 unittest.TestCase 的方法才会被跑到",
+        )
+    else:
+        ok("测试用例全部可被收集", f"定义 {defined} / 收集 {collected}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="提交前护栏自检")
     parser.add_argument("--write-baseline", action="store_true",
@@ -209,6 +246,7 @@ def main() -> int:
     check_entry_imports()
     check_secrets()
     check_env_not_tracked()
+    check_tests_collected()
     if args.smoke:
         check_smoke(args.smoke)
 
