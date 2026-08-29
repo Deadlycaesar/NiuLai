@@ -25,11 +25,60 @@ def _warn(reason: str) -> None:
     print(f"[M2] USE_DENSE=1 但稠密路未生效（{reason}），本场为纯 BM25。", file=sys.stderr)
 
 
+def _torch_encoder():
+    """SentenceTransformer/torch 后端（现状，内存峰值 +660MB）。"""
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+
+    # 断网红线：只读本地缓存，绝不在运行时尝试下载（预计算脚本已拉过权重）
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    model = SentenceTransformer(config.EMBED_MODEL, device="cpu")
+
+    def encode(text: str):
+        return model.encode(
+            [QUERY_INSTRUCTION + text], convert_to_numpy=True, normalize_embeddings=True,
+        )[0].astype(np.float32)
+
+    return encode
+
+
+def _onnx_encoder():
+    """onnx-runtime 后端（实验 O10）：tokenizers + onnxruntime，不依赖 torch。
+
+    资产：data/onnx_model/{model.onnx, tokenizer.json}（bge-small-en-v1.5 官方 onnx）。
+    CLS pooling（与 ST 侧 bge 的 1_Pooling 配置一致），输出 L2 归一化 float32。
+    """
+    import numpy as np
+    import onnxruntime as ort
+    from tokenizers import Tokenizer
+
+    model_dir = Path(getattr(config, "EMBED_ONNX_DIR", "data/onnx_model"))
+    model_file = getattr(config, "EMBED_ONNX_MODEL", "model.onnx")
+    tok = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
+    session = ort.InferenceSession(
+        str(model_dir / model_file), providers=["CPUExecutionProvider"]
+    )
+    input_names = {i.name for i in session.get_inputs()}
+
+    def encode(text: str):
+        enc = tok.encode(QUERY_INSTRUCTION + text)
+        inputs = {
+            "input_ids": np.array([enc.ids], dtype=np.int64),
+            "attention_mask": np.array([enc.attention_mask], dtype=np.int64),
+        }
+        if "token_type_ids" in input_names:
+            inputs["token_type_ids"] = np.array([enc.type_ids], dtype=np.int64)
+        vec = session.run(None, inputs)[0][0][0].astype(np.float32)  # CLS
+        return vec / np.linalg.norm(vec)
+
+    return encode
+
+
 class DenseIndex:
-    def __init__(self, asins, matrix, model) -> None:
+    def __init__(self, asins, matrix, encode_fn) -> None:
         self.asins = asins          # (N,) str 数组，与 matrix 行一一对应
         self.matrix = matrix        # (N, 384) float32，已归一化
-        self.model = model          # SentenceTransformer
+        self._encode = encode_fn    # str -> 归一化 float32 向量
         self._vec_cache: dict[str, object] = {}  # 查询文本 → 向量（约束问干后逐轮不变，省重复编码）
 
     @classmethod
@@ -43,13 +92,18 @@ class DenseIndex:
                 _warn(f"npz 缺失：{path}")
                 return None
             import numpy as np
-            from sentence_transformers import SentenceTransformer
 
-            # 断网红线：只读本地缓存，绝不在运行时尝试下载（预计算脚本已拉过权重）
-            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
             data = np.load(path, allow_pickle=False)
-            model = SentenceTransformer(config.EMBED_MODEL, device="cpu")
-            return cls(asins=data["asins"], matrix=data["matrix"], model=model)
+            # 实验 O10：DENSE_BACKEND=onnx 走轻量运行时；onnx 资产缺失回退 torch，再缺降级
+            if getattr(config, "DENSE_BACKEND", "torch") == "onnx":
+                try:
+                    encode_fn = _onnx_encoder()
+                except Exception as exc:
+                    _warn(f"onnx 后端不可用（{type(exc).__name__}: {exc}），回退 torch")
+                    encode_fn = _torch_encoder()
+            else:
+                encode_fn = _torch_encoder()
+            return cls(asins=data["asins"], matrix=data["matrix"], encode_fn=encode_fn)
         except Exception as exc:
             _warn(f"{type(exc).__name__}: {exc}")
             return None
@@ -62,11 +116,7 @@ class DenseIndex:
 
         vector = self._vec_cache.get(query_text)
         if vector is None:
-            vector = self.model.encode(
-                [QUERY_INSTRUCTION + query_text],
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-            )[0].astype(np.float32)
+            vector = self._encode(query_text)
             self._vec_cache[query_text] = vector
         sims = self.matrix @ vector
         top_k = min(top_k, len(self.asins))

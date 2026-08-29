@@ -21,3 +21,6 @@ results_*.json
 m2-spec/
 # M2 稠密路预计算产物（~77MB，分发方式待定，不进 git）
 data/embeddings.npz
+# O10 onnx 后端本地资产（权重 133MB/int8 32MB）与隔离 venv，不进 git
+data/onnx_model/
+.venv-onnx/

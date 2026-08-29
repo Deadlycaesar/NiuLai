@@ -109,4 +109,7 @@ USE_DENSE = os.environ.get("USE_DENSE", "0") == "1"
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 EMBEDDINGS_PATH = os.environ.get("EMBEDDINGS_PATH", "data/embeddings.npz")
 DENSE_TOP_K = int(os.environ.get("DENSE_TOP_K", "100"))
+# 实验 O10：查询编码后端。torch（默认，sentence-transformers）/ onnx（onnx-runtime，内存峰值低 ~660MB）
+DENSE_BACKEND = os.environ.get("DENSE_BACKEND", "torch")
+EMBED_ONNX_DIR = os.environ.get("EMBED_ONNX_DIR", "data/onnx_model")
 RRF_K = int(os.environ.get("RRF_K", "60"))
