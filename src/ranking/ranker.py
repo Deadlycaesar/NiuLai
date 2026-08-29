@@ -26,7 +26,11 @@ _RERANK_SYSTEM = (
 def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
     if not candidates:
         return []
-    total = max(len(candidates), 1)
+    # BM25 名次分按【BM25 子池】归一化（实验 22，与短语召回路捆绑）：
+    # 追加候选（短语路/稠密路，bm25_rank ≥ CANDIDATE_POOL 哨兵）不在名次体系里，记 0。
+    bm25_pool = max(sum(1 for c in candidates
+                        if isinstance(c.get("bm25_rank"), int)
+                        and c["bm25_rank"] < config.CANDIDATE_POOL), 1)
 
     # 每槽一组归一化 terms（A 产出；空列表 = 该槽不参与文本匹配，budget 槽即如此）。
     # 计权取命中的最长 term、同槽不重复计分（SPEC §5 消费约定）
@@ -70,7 +74,17 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         # features 条数先验：目标商品的详情页更完整（中位数 8 条 vs 全目录 5 条）
         if config.FEATURE_COUNT_WEIGHT:
             s += config.FEATURE_COUNT_WEIGHT * min(c.get("feature_count", 0), 12) / 12.0
-        s += 1.0 - (c.get("bm25_rank", total) / total)  # BM25 名次归一化到 0..1
+        # 意图卡镜像一致性（实验 22）：槽位值命中候选自身的镜像卡条目 → 每槽 +MIRROR_BONUS。
+        # 意图卡由候选元数据确定性生成、77.6% 全局唯一——这是"该候选会生成这段对话"的直接证据
+        if config.MIRROR_BONUS:
+            card = c.get("card_norm") or ()
+            for terms, _base in slot_matchers:
+                if any(t in entry for entry in card for t in terms):
+                    s += config.MIRROR_BONUS
+        # BM25 名次分（子池归一化）：追加候选不在名次体系里，记 0
+        rank_val = c.get("bm25_rank")
+        if isinstance(rank_val, int) and rank_val < config.CANDIDATE_POOL:
+            s += 1.0 - rank_val / bm25_pool
         return s
 
     ordered = sorted(candidates, key=score, reverse=True)

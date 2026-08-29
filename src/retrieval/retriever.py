@@ -48,6 +48,41 @@ def _searchable_text(product: dict) -> str:
     return " ".join(parts).strip()
 
 
+def _flatten_values(value: object) -> list[str]:
+    """镜像评测器 _flatten_values（勿改：与 local_evaluator.py:40 逐字对齐）。"""
+    if isinstance(value, dict):
+        return [f"{key}: {item}" for key, item in value.items() if item not in (None, "", [])]
+    if isinstance(value, list):
+        return [str(item) for item in value if item not in (None, "")]
+    return [str(value)] if value not in (None, "") else []
+
+
+def _clean_constraint(value: str, limit: int = 180) -> str:
+    """镜像评测器 _clean_constraint（勿改：与 local_evaluator.py:49 逐字对齐）。"""
+    return re.sub(r"\s+", " ", value).strip(" -;,.\t\n")[:limit].rstrip()
+
+
+def mirror_card_entries(product: dict, material, color) -> list[str]:
+    """镜像评测器 intent_card() 的 hard+soft 条目（≤4 条，归一化后返回）。
+
+    用途（实验 22，M3 的一致性 bonus）：意图卡由候选自身元数据确定性生成且 77.6%
+    全局唯一——"用户吐露的约束恰好是候选自身卡上的条目"是强一致性证据。
+    material/color 参数直接复用构造期已算好的 regex match，避免重复扫描。
+    """
+    candidates = [*_flatten_values(product.get("features")), *_flatten_values(product.get("details"))]
+    if material:
+        candidates.insert(0, material.group(1).lower())
+    if color:
+        candidates.insert(1, f"color: {color.group(1).lower()}")
+    if product.get("price") not in (None, ""):
+        candidates.append(f"budget around ${product['price']}")
+    cleaned = list(dict.fromkeys(c for c in (_clean_constraint(item) for item in candidates) if c))
+    if not cleaned:
+        cleaned = [_clean_constraint(str(product.get("title") or "product"))]
+    entries = cleaned[:2] + (cleaned[2:4] or cleaned[:1])
+    return [normalize(e) for e in dict.fromkeys(entries) if normalize(e)]
+
+
 def coarse_category(values: list[str]) -> str:
     """镜像评测器的粗品类算法：categories 最后两段非泛化部分（开场句的 X 就是它）。"""
     excluded = {"clothing", "clothing shoes & jewelry", "clothing, shoes & jewelry"}
@@ -97,6 +132,7 @@ class Retriever:
                     "rating_number": int(product.get("rating_number") or 0),
                     "feature_count": len(product.get("features") or []),
                     "coarse_cat": normalize(coarse_category(product.get("categories") or [])),
+                    "card_norm": mirror_card_entries(product, material, color),
                 }
                 rows.append((
                     parent_asin,
@@ -181,8 +217,40 @@ class Retriever:
         if len(candidates) > max(k, 10):
             candidates = candidates[: max(k, 10)]
 
+        # 逐约束短语召回路（实验 22）：追加在截断之后，与稠密路同款"非置换并集"。
+        if config.PHRASE_RECALL:
+            candidates = self._phrase_recall(state, candidates, slot_terms)
+
         # 稠密路补充召回（spec §1-⑤；self.dense 为 None 时跳过，纯 BM25 与 v1 一致）。
         # 放在截断【之后】追加：BM25 top-k 一个不动，稠密独有候选附在队尾，保证不被截掉。
         if self.dense is not None:
             candidates = self._fuse_dense(state, candidates, slot_terms)
+        return candidates
+
+    # ---- 逐约束短语召回（实验 22）：OR-token 大池会把"全样板约束+超冷门"目标挤出
+    # top-300（public_0020 唯一 miss 的死因）；≥3 token 槽位值的 FTS5 短语查询子池
+    # 极小、目标必进池。追加候选 bm25_rank 给哨兵值（CANDIDATE_POOL），排序侧记 0。
+    def _phrase_recall(self, state: DialogState, candidates: list[dict],
+                       slot_terms: list[list[str]]) -> list[dict]:
+        have = {c["parent_asin"] for c in candidates}
+        low = state.budget * (1 - config.PRICE_WINDOW) if state.budget is not None else None
+        high = state.budget * (1 + config.PRICE_WINDOW) if state.budget is not None else None
+        for terms in slot_terms:
+            tokens = terms[0].split()
+            if len(tokens) < 3:
+                continue
+            query = '"' + " ".join(tokens) + '"'   # FTS5 短语查询（词序敏感的精确匹配）
+            cursor = self.connection.execute(
+                "SELECT parent_asin FROM products WHERE products MATCH ? LIMIT ?",
+                (query, config.PHRASE_TOP_K),
+            )
+            for (parent_asin,) in cursor.fetchall():
+                if parent_asin in have or parent_asin not in self.products:
+                    continue
+                info = self.products[parent_asin]
+                if low is not None and (info["price"] is None or not (low <= info["price"] <= high)):
+                    continue
+                matched = sum(1 for ts in slot_terms if any(t in info["norm_text"] for t in ts))
+                candidates.append({**info, "bm25_rank": config.CANDIDATE_POOL, "match_count": matched})
+                have.add(parent_asin)
         return candidates

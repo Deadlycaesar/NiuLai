@@ -81,6 +81,17 @@ EARLY_PRIOR_BOOST = float(os.environ.get("EARLY_PRIOR_BOOST", "1.0"))
 #（Slot.terms 接口，片段 ≥5 字符护栏；消费端 max-len 计权，权重数值本身不再使用）。
 FRAGMENT_WEIGHT = float(os.environ.get("FRAGMENT_WEIGHT", "0.8"))
 
+# M3：意图卡镜像一致性 bonus（0 = 关闭）。依据（实验 22）：评测器意图卡由候选自身
+# 元数据确定性生成、77.6% 全局唯一——"槽位值命中候选自身的镜像卡条目"是比裸子串
+# 更强的一致性证据。权重 ≥1.0 恒定收敛（真二元判别器，同 has_price 形态）。
+MIRROR_BONUS = float(os.environ.get("MIRROR_BONUS", "1.0"))
+
+# M2：逐约束短语召回路（0 = 关闭）。依据（实验 22）：OR-token 大池会把"全样板约束 +
+# 超冷门"目标挤出 top-300（public_0020 唯一 miss 的死因）；≥3 token 槽位值的 FTS5
+# 短语查询子池极小、目标必进池。追加候选的 BM25 名次分记 0（子池归一化，与之捆绑）。
+PHRASE_RECALL = os.environ.get("PHRASE_RECALL", "1") == "1"
+PHRASE_TOP_K = int(os.environ.get("PHRASE_TOP_K", "50"))
+
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
 
