@@ -38,7 +38,7 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 # 45 而非 20：实测 GLM-4.7-Flash 免费额度单次调用可达 21.5s，20s 超时会导致
-# 整轮实验静默降级到规则路径（C-T9 第 2 次复跑 tokens=0 即此故障）。
+# 整轮实验静默降级到规则路径（C-T9（实验 25a）第 2 次复跑 tokens=0 即此故障）。
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
 # M3：LLM 精排的 prompt 形态（C-T9 对照实验）。
