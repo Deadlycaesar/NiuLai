@@ -66,6 +66,10 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         return s
 
     ordered = sorted(candidates, key=score, reverse=True)
+    # 低置信轮收窄推荐条数（实验 11）：命中即终局，早轮以烂名次命中会把 MRR 锁死。
+    # 宁可第 1 轮不命中，也要等第 2 轮拿到约束后以第 1 名命中——单条净赚 0.237 分。
+    if config.EARLY_TOPK and len(state.history) <= config.EARLY_TURNS:
+        k = min(k, config.EARLY_TOPK)
     if config.USE_LLM:
         ordered = _llm_rerank(state, ordered[: config.LLM_RERANK_POOL]) + ordered[config.LLM_RERANK_POOL:]
     return ordered[:k]

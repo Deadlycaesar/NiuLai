@@ -46,6 +46,14 @@ HAS_PRICE_WEIGHT = float(os.environ.get("HAS_PRICE_WEIGHT", "1.0"))
 # M3：features 条数先验（实验 10b 已证伪：0.5 → 0.9176、1.0 → 0.9127，均低于不加）。保留开关供复现。
 FEATURE_COUNT_WEIGHT = float(os.environ.get("FEATURE_COUNT_WEIGHT", "0"))
 
+# M3：低置信轮的推荐条数上限（0 = 关闭，始终给满 10 条）。
+# 依据：命中即终局，第 1 轮以第 7 名命中会把烂名次锁死（MRR 记 1/7）；
+# 若第 1 轮少给几条、第 2 轮拿到约束后以第 1 名命中，单条会话净赚 0.237 分。
+EARLY_TOPK = int(os.environ.get("EARLY_TOPK", "1"))
+# 应用 EARLY_TOPK 的轮次上限。停止准则（实验 11a）：TURNS=2 三桶齐涨且 miss 不变；
+# TURNS=3 时 easy hit 掉 .988→.975、medium hit 掉 1.000→.989、miss 1→3 = 拐点。
+EARLY_TURNS = int(os.environ.get("EARLY_TURNS", "2"))
+
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
 
