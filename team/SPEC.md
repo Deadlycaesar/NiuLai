@@ -1,7 +1,7 @@
 # Shopping Copilot — 技术方案 Spec（v0.1 讨论稿）
 
 > 状态：**讨论稿**，供 5 人组第一次对齐会使用。定稿前不开发。
-> 配套文档：[Problem statement.md](Problem%20statement.md)（题目精简版）、[分工计划.md](分工计划.md)
+> 配套文档：[problem-statement.md](problem-statement.md)（题目精简版）、[分工计划.md](分工计划.md)
 > 事实来源：官方仓库 https://github.com/TechJam2026/techjam-conversational-search （README、docs/competition_specification.md、docs/agent_api_contract.json、evaluator 源码）
 
 ---
