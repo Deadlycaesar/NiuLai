@@ -40,6 +40,12 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
 
     norm_category = normalize(state.category) if state.category else ""
 
+    # 先验衰减系数：证据越多，先验越该让位给证据（第 1 轮无证据时先验全权重）
+    evidence = len(weighted_tokens)
+    prior_scale = 1.0 / (1.0 + config.PRIOR_DECAY * evidence) if config.PRIOR_DECAY else 1.0
+    if config.EARLY_PRIOR_BOOST != 1.0 and len(state.history) <= config.EARLY_TURNS:
+        prior_scale *= config.EARLY_PRIOR_BOOST
+
     def score(c: dict) -> float:
         text = c.get("norm_text", "")
         s = sum(weight for token, weight in weighted_tokens if token in text)
@@ -52,13 +58,36 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
                 s += 4.0
             elif state.budget * 0.9 <= c["price"] <= state.budget * 1.1:
                 s += 0.5
+        # 先验轴（回答"哪件更可能是真人买的那一件"，而非"哪件更匹配这句话"）
         # 热度先验：log 压缩后归一化到 0..1（rating_number 跨度 0~10 万，线性会淹没约束信号）
         if config.POP_WEIGHT:
-            s += config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
+            s += prior_scale * config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
+        # has_price 先验：真实卖出去的商品才有价格数据（目标 89.0% vs 全目录 20.8%，且与热度独立）
+        if config.HAS_PRICE_WEIGHT and c.get("price") is not None:
+            s += prior_scale * config.HAS_PRICE_WEIGHT
+        # features 条数先验：目标商品的详情页更完整（中位数 8 条 vs 全目录 5 条）
+        if config.FEATURE_COUNT_WEIGHT:
+            s += config.FEATURE_COUNT_WEIGHT * min(c.get("feature_count", 0), 12) / 12.0
         s += 1.0 - (c.get("bm25_rank", total) / total)  # BM25 名次归一化到 0..1
         return s
 
     ordered = sorted(candidates, key=score, reverse=True)
+    # 低置信轮收窄推荐条数（实验 11）：命中即终局，早轮以烂名次命中会把 MRR 锁死。
+    # 宁可第 1 轮不命中，也要等第 2 轮拿到约束后以第 1 名命中——单条净赚 0.237 分。
+    if config.EARLY_TOPK:
+        if config.EARLY_MODE == "hybrid":
+            # 信息不足【且】还没超过硬上限才收窄。
+            # 纯 slots 模式在私有集上有崩溃风险：改写导致解析失败 → 槽位永远填不满 →
+            # 永远只推 1 件 → HitRate 崩（实测 MIN_SLOTS=5 即 0.9318 / hit 0.955）。
+            # 轮次上限是安全出口：无论信息多差，第 EARLY_TURNS 轮之后一定给满 10 件。
+            narrow = (len(state.slots) < config.EARLY_MIN_SLOTS
+                      and len(state.history) <= config.EARLY_TURNS)
+        elif config.EARLY_MODE == "slots":
+            narrow = len(state.slots) < config.EARLY_MIN_SLOTS
+        else:
+            narrow = len(state.history) <= config.EARLY_TURNS
+        if narrow:
+            k = min(k, config.EARLY_TOPK)
     if config.USE_LLM:
         ordered = _llm_rerank(state, ordered[: config.LLM_RERANK_POOL]) + ordered[config.LLM_RERANK_POOL:]
     return ordered[:k]

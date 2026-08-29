@@ -53,7 +53,7 @@ class ShoppingAgent:
         state.last_ranked = [c["parent_asin"] for c in top]
 
         return {
-            "message": clarify(state, ask_attribute),
+            "message": clarify(state, ask_attribute, top),
             "ask_attribute": ask_attribute,
             "recommendations": [
                 {"parent_asin": c["parent_asin"], "score": round(1.0 / (i + 1), 4)}
