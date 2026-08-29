@@ -1,0 +1,55 @@
+# CI 冒烟护栏（M5/E 的活，E 缺席期间由全组共同维护）。
+#
+# 只做一件事：拦住会让全队归零的错误——改了官方评测器、入口壳坏掉、密钥入库、Agent 崩溃。
+# 不做提分判断（分数回退由推送者自己跑全量把关，见 AGENTS.md 协作流程）。
+name: guards
+
+on:
+  push:
+    branches: [main, "M*", "feat/**", "try-**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 官方 kit 要求 3.10+；这里固定 3.12，与开发机一致
+          python-version: "3.12"
+
+      # 基础路径零第三方依赖（requirements.txt 只在 USE_DENSE=1 时需要），
+      # 所以这里故意【不装】依赖——顺便验证"断网/无依赖也能出分"这条红线。
+      - name: 解压 catalog
+        run: python3 scripts/prepare_catalog.py
+
+      - name: 护栏自检（红线 1-4 + 密钥扫描 + 5 条冒烟）
+        run: python3 scripts/check_guards.py
+
+      - name: 全量评测（约 30 秒，确认没崩且分数在合理区间）
+        run: |
+          python3 -m evaluator.local_evaluator --output results.json
+          python3 - <<'PY'
+          import json, sys
+          score = json.load(open("results.json"))["recommended_technical_score"]
+          print(f"TechnicalScore = {score:.5f}")
+          # 只做健全性下限，不做提分门槛：低于 baseline 说明真的坏了
+          if score < 0.11:
+              sys.exit(f"分数 {score:.5f} 低于官方 baseline 0.107——系统性故障，不是调参问题")
+          PY
+
+      - name: 官方 baseline 可切换（保 DEMO.md 幕 1 不翻车）
+        env:
+          AGENT_IMPL: baseline
+        run: |
+          python3 -m evaluator.local_evaluator --output results_baseline.json
+          python3 - <<'PY'
+          import json, sys
+          score = json.load(open("results_baseline.json"))["recommended_technical_score"]
+          assert abs(score - 0.10671) < 1e-4, f"官方 baseline 复现值漂移：{score}"
+          print(f"baseline 复现 = {score:.5f}")
+          PY

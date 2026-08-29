@@ -6,13 +6,18 @@
 ## 项目一句话
 
 在官方评测器上构建多轮对话购物 Agent：≤10 轮内把用户真正购买的商品推进 top-10。
-目标：TechnicalScore 从 baseline **0.107** 提到 **0.40+**（公式 = 0.50×HitRate@10 + 0.30×MRR + 0.20×Efficiency）。
+目标：TechnicalScore（公式 = 0.50×HitRate@10 + 0.30×MRR + 0.20×Efficiency）。
+**当前 main = 0.918**（baseline 0.107）。原定的 0.40+ 已远超，**提分阶段基本结束**：
+公开集实际天花板约 0.99，剩余空间仅 ~0.07，且越榨越容易过拟合私有集。
+新重心 = **鲁棒性（防私有集/改写翻车）+ 交付物（README / 报告 / demo 视频 / Devpost）**。
 
 ## 常用命令
 
 ```bash
 python3 scripts/prepare_catalog.py        # 首次：校验 SHA256 并解压 catalog（一次即可）
-python3 -m evaluator.local_evaluator      # 全量评测 200 sessions，无 LLM 时约 33 秒
+python3 -m evaluator.local_evaluator      # 全量评测 200 sessions，无 LLM 时约 10 秒（M5/24G 实测 9.7s）
+python3 scripts/check_guards.py            # 提交前护栏自检（红线 1-4 + 密钥扫描），10 秒
+python3 scripts/eval_sample.py --n 40      # 分层抽样评测（LLM 路径太慢时用）
 ```
 
 评测结果在 `results.json`：看 `recommended_technical_score` 和 `scenario_metrics`（分场景分数）。
@@ -54,6 +59,16 @@ python3 -m evaluator.local_evaluator      # 全量评测 200 sessions，无 LLM 
 - 四场景：Buying 40%（首条含硬约束，第 1 轮可命中）/ Browsing 40%（模糊开局，baseline 在此几乎 0 分，最大提分空间）/ Intent Override 15%（第 3-4 轮改需求，此前命中无效）/ Boundary 5%（第一问被挡）。
 - 问中匹配属性 → 用户原文吐出最多 2 条约束；`"other"` 匹配任意剩余约束。
 - 模拟器回复格式固定，见 `evaluator/local_evaluator.py` 的 `customer_reply()`——解析器可以精确对着写。
+- **`message` 字段评测器根本不读**（源码第 243 行只做 `isinstance(..., str)` 类型检查）。你和模拟用户之间的
+  唯一信道是 `ask_attribute` 这一个 10 选一的枚举值 ≈ 3.3 bit/轮——**没有任何"提问话术"能影响用户的回答**。
+  推论：LLM 无法用于"引导用户"；`message` 的价值只在人评（Technical Execution 35% + Innovation 20%）与 demo 视频。
+- **`classify_constraint()` 永远不会返回 `category` / `brand`** → 问这两个属性必然空手而归。公开集 800 条约束的
+  实测分布：feature 404 / material 302 / color 60 / style 19 / size 11 / use_case 4 / **budget 0**。
+- **budget 是死代码**：公开集 0/800、catalog 侧仅 0.53% 的商品会生成 budget 约束 → `state.budget` 恒为 None，
+  `ranker.py` 的价格打分与 `retriever.py` 的 budget 过滤从未执行。不要在价格路上花时间。
+- **排序轴 vs 先验轴（实验 8c，影响技术选型）**：语义相关性信号（BM25 / 稠密 / 交叉编码器）已被"约束逐字命中"
+  这个指纹信号吃满，在打平局里无区分度（实验 7）。真正解决打平局的是**先验轴**——"哪件更可能是真人会买的"
+  （rating_number 等）。**上任何语义重排器之前，先照实验 7 口径做 20 分钟可行性诊断。**
 
 ## 文档地图
 
