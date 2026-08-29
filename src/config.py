@@ -61,6 +61,14 @@ EARLY_TURNS = int(os.environ.get("EARLY_TURNS", "3"))
 EARLY_MODE = os.environ.get("EARLY_MODE", "hybrid")
 EARLY_MIN_SLOTS = int(os.environ.get("EARLY_MIN_SLOTS", "4"))  # slots 模式：槽位少于此数就收窄
 
+# M3：先验权重是否随证据增多而衰减（0 = 恒定权重）。
+# 动机：第 1 轮（尤其 browsing）没有任何约束证据，排序只能靠先验；拿到约束后证据应当压过先验。
+# 衰减式：effective_weight = W / (1 + PRIOR_DECAY * 命中的约束条数)
+PRIOR_DECAY = float(os.environ.get("PRIOR_DECAY", "0"))
+# M3：收窄轮（第 1-2 轮）的先验倍率。这几轮只推 1 件、且几乎没有约束证据，
+# 排序几乎完全由先验决定——单独给它一个倍率，与后续轮解耦。
+EARLY_PRIOR_BOOST = float(os.environ.get("EARLY_PRIOR_BOOST", "1.0"))
+
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
 

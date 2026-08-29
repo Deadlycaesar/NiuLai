@@ -40,6 +40,12 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
 
     norm_category = normalize(state.category) if state.category else ""
 
+    # 先验衰减系数：证据越多，先验越该让位给证据（第 1 轮无证据时先验全权重）
+    evidence = len(weighted_tokens)
+    prior_scale = 1.0 / (1.0 + config.PRIOR_DECAY * evidence) if config.PRIOR_DECAY else 1.0
+    if config.EARLY_PRIOR_BOOST != 1.0 and len(state.history) <= config.EARLY_TURNS:
+        prior_scale *= config.EARLY_PRIOR_BOOST
+
     def score(c: dict) -> float:
         text = c.get("norm_text", "")
         s = sum(weight for token, weight in weighted_tokens if token in text)
@@ -55,10 +61,10 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         # 先验轴（回答"哪件更可能是真人买的那一件"，而非"哪件更匹配这句话"）
         # 热度先验：log 压缩后归一化到 0..1（rating_number 跨度 0~10 万，线性会淹没约束信号）
         if config.POP_WEIGHT:
-            s += config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
+            s += prior_scale * config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
         # has_price 先验：真实卖出去的商品才有价格数据（目标 89.0% vs 全目录 20.8%，且与热度独立）
         if config.HAS_PRICE_WEIGHT and c.get("price") is not None:
-            s += config.HAS_PRICE_WEIGHT
+            s += prior_scale * config.HAS_PRICE_WEIGHT
         # features 条数先验：目标商品的详情页更完整（中位数 8 条 vs 全目录 5 条）
         if config.FEATURE_COUNT_WEIGHT:
             s += config.FEATURE_COUNT_WEIGHT * min(c.get("feature_count", 0), 12) / 12.0
