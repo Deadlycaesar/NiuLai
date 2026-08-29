@@ -53,3 +53,24 @@ jobs:
           assert abs(score - 0.10671) < 1e-4, f"官方 baseline 复现值漂移：{score}"
           print(f"baseline 复现 = {score:.5f}")
           PY
+
+      # 把留言板待回复帖子打进 Actions 日志——推代码的人在 GitHub 上也能一眼看到
+      - name: 留言板待回复提醒
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          board = Path("team/留言板.md")
+          if not board.exists():
+              raise SystemExit(0)
+          lines = board.read_text(encoding="utf-8").splitlines()
+          open_threads = [l for l in lines
+                          if l.startswith("### [T-") and "🟡" in l and "[T-00X]" not in l]
+          if not open_threads:
+              print("留言板：没有待回复的帖子 ✅")
+              raise SystemExit(0)
+          print(f"::warning::留言板有 {len(open_threads)} 个帖子在等回复")
+          for l in open_threads:
+              print("  " + l[4:])
+          print("\n→ 打开 team/留言板.md，在对应帖子下加一行回复")
+          PY
