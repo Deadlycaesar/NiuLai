@@ -28,6 +28,12 @@ CANDIDATE_POOL = int(os.environ.get("CANDIDATE_POOL", "300"))
 
 # M3：是否启用 LLM 增强路径（离线降级是硬要求，默认关）
 USE_LLM = os.environ.get("USE_LLM", "0") == "1"
+
+# M1：LLM 兜底解析（第三层防线：严格模板 → 规则载荷抽取 → LLM 逐字片段抽取）。
+# 只在前两层落空、salvage 即将退回"整句切分"最弱路径时触发；LLM 产出强制过
+# verbatim 校验（归一化后必须是原消息子串），确保不破坏逐字指纹信号。
+# 默认关；开着但无 key/断网时两次失败即熔断，行为与纯规则路径一致。
+LLM_PARSE = os.environ.get("LLM_PARSE", "0") == "1"
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")

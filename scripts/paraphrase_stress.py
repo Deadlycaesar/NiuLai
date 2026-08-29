@@ -80,6 +80,31 @@ _PHRASING = [
      "I'm after {cat}. {rest}"),
 ]
 
+# ---------------------------------------------------------------- L4：无冒号自然改写
+# 与 L1 同为"约束原文逐字保留"，但去掉所有冒号、把载荷埋进句子中段——专打第二层防线
+# （salvage）赖以生存的冒号载荷规则，隔离测量第三层防线（LLM_PARSE 逐字片段抽取）。
+# 正则与 _PHRASING 逐条对应，只换模板。
+_PHRASING_L4 = [
+    (_PHRASING[0][0],
+     "So I've been shopping around for {cat} lately, nothing set in stone yet."),
+    (_PHRASING[1][0],
+     "I'm after {cat} and honestly the dealbreaker for me is {c} more than anything else."),
+    (_PHRASING[2][0],
+     "Hold on — scratch what I said earlier, {v} is the thing that actually matters to me."),
+    (_PHRASING[3][0],
+     "Hold on, forget what I told you before."),
+    (_PHRASING[4][0],
+     "On that front I'd say {body} pretty much covers what counts for me."),
+    (_PHRASING[5][0],
+     "Nothing else springs to mind on {a}, sorry."),
+    (_PHRASING[6][0],
+     "No strong feelings about {a} — I'll leave that one to you."),
+    (_PHRASING[7][0],
+     "Hmm, none of those feel right. Could you ask me about one thing in particular?"),
+    (_PHRASING[8][0],
+     "I'm after {cat} and {rest}"),
+]
+
 # ---------------------------------------------------------------- 约束值改写（L2/L3）
 _SPEC_RE = re.compile(r"\d")          # 含数字 = 规格串（成分表/尺寸），LLM 改写时通常原样保留
 _SHORT_LIMIT = 25
@@ -121,7 +146,7 @@ def paraphrase(message: str, level: str) -> str:
     if level == "L0":
         return message
     text = message.strip()
-    for pattern, template in _PHRASING:
+    for pattern, template in (_PHRASING_L4 if level == "L4" else _PHRASING):
         match = pattern.match(text)
         if not match:
             continue
@@ -185,7 +210,7 @@ def main() -> None:
         ]
         for text in examples:
             print(f"\n原句  {text}")
-            for level in ("L1", "L2", "L3"):
+            for level in ("L1", "L2", "L3", "L4"):
                 print(f"  {level}  {paraphrase(text, level)}")
         return
 
@@ -207,6 +232,7 @@ def main() -> None:
             level, score, result["hit_rate_at_10"], result["mrr"], result["mttc"], delta))
 
     print("\n档位含义：L1 只改句式（约束原文逐字保留）／ L2 再改短约束 ／ L3 连长规格串也重组")
+    print("        ／ L4 无冒号自然改写（约束逐字保留但载荷埋进句中——测 LLM_PARSE 第三层防线）")
     print("注：机械改写，非真 LLM 改写。价值在于分层隔离故障点，不在于精确预测私有集分数。")
 
 
