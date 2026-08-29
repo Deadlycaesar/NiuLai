@@ -36,3 +36,10 @@ LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排
 
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
+
+# M2 稠密路：USE_DENSE=1 且资产齐全才启用，任一条件不满足自动降级纯 BM25（spec §1-⑦）
+USE_DENSE = os.environ.get("USE_DENSE", "0") == "1"
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
+EMBEDDINGS_PATH = os.environ.get("EMBEDDINGS_PATH", "data/embeddings.npz")
+DENSE_TOP_K = int(os.environ.get("DENSE_TOP_K", "100"))
+RRF_K = int(os.environ.get("RRF_K", "60"))

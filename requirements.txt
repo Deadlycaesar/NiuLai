@@ -1,0 +1,7 @@
+# 基础运行（baseline + 规则路径）只依赖 Python 3.10+ 标准库，无需安装任何东西。
+# 以下依赖仅 M2 稠密路（USE_DENSE=1）需要；缺失时系统自动降级纯 BM25，评测照常出分。
+# 注意版本约束：transformers 5.x 要求 torch>=2.5，本项目实测环境为 torch 2.2.1，故固定 4.x。
+sentence-transformers==3.0.1
+transformers==4.46.3
+torch>=2.2
+numpy>=1.24
