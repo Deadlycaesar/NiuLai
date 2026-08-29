@@ -21,16 +21,19 @@ For each session, your agent receives an anonymized preference profile and a sho
 
 The session ends when the target product appears in the scored Top 10 or after turn 10. Sessions cover Buying, Browsing, Intent Override, and Boundary behavior.
 
-## Download the Catalog
+## Prepare the Catalog
 
-Download `catalog.jsonl.gz` from the GitHub Release attached to this repository, then run:
+The repository includes the 19 MB compressed catalog (`catalog.jsonl.gz`) and its
+published `SHA256SUMS` file. Before running the agent, verify and extract it with
+the standard-library helper (Python 3.10+):
 
 ```bash
-gzip -dk catalog.jsonl.gz
-mv catalog.jsonl data/catalog.jsonl
+python scripts/prepare_catalog.py
 ```
 
-Verify the downloaded file using the published `SHA256SUMS` file.
+This creates the ignored local file `data/catalog.jsonl` (about 58 MB). The helper
+checks the archive SHA-256 before extraction. To replace an existing extracted
+catalog, run `python scripts/prepare_catalog.py --force`.
 
 ## Run the Starter
 
