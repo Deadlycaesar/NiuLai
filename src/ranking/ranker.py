@@ -7,8 +7,17 @@ C 接手后：加 CPU 交叉编码器重排 + LLM listwise 润色（USE_LLM 开�
 
 from __future__ import annotations
 
+from src import config
 from src.dialog.state import DialogState
+from src.ranking import llm_client
 from src.retrieval.retriever import constraint_match_token, normalize
+
+_RERANK_SYSTEM = (
+    "You are a product ranking expert for a clothing/shoes/jewelry catalog. "
+    "Given the shopper's stated constraints and a numbered candidate list, rank candidates "
+    "by how well they satisfy ALL constraints (category, material, color, budget, features). "
+    'Reply with json only: {"ranking": [best_index, next_index, ...]} using the given indices.'
+)
 
 
 def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
@@ -43,4 +52,27 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         s += 1.0 - (c.get("bm25_rank", total) / total)  # BM25 名次归一化到 0..1
         return s
 
-    return sorted(candidates, key=score, reverse=True)[:k]
+    ordered = sorted(candidates, key=score, reverse=True)
+    if config.USE_LLM:
+        ordered = _llm_rerank(state, ordered[: config.LLM_RERANK_POOL]) + ordered[config.LLM_RERANK_POOL:]
+    return ordered[:k]
+
+
+def _llm_rerank(state: DialogState, pool: list[dict]) -> list[dict]:
+    """LLM listwise 精排（增强路径）：只重排规则序头部；任何失败原样返回规则序。"""
+    if len(pool) < 3:
+        return pool
+    lines = [f"Shopper constraints: {state.distilled or state.category or 'unknown'}", "Candidates:"]
+    for index, c in enumerate(pool, start=1):
+        price = f" ${c['price']}" if c.get("price") is not None else ""
+        lines.append(f"{index}. {c['title'][:90]}{price}")
+    reply = llm_client.chat_json(_RERANK_SYSTEM, "\n".join(lines), max_tokens=150)
+    if not reply or not isinstance(reply.get("ranking"), list):
+        return pool
+    order: list[int] = []
+    for value in reply["ranking"]:
+        if isinstance(value, int) and 1 <= value <= len(pool) and value not in order:
+            order.append(value)
+    reranked = [pool[i - 1] for i in order]
+    reranked += [c for i, c in enumerate(pool, start=1) if i not in order]
+    return reranked

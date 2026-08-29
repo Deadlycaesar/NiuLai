@@ -9,6 +9,7 @@ from __future__ import annotations
 from src.dialog import parser, policy
 from src.dialog.state import DialogState
 from src.memory.distiller import distill
+from src.ranking import llm_client
 from src.ranking.clarify import clarify
 from src.ranking.ranker import rank
 from src.retrieval.retriever import Retriever
@@ -58,5 +59,5 @@ class ShoppingAgent:
                 {"parent_asin": c["parent_asin"], "score": round(1.0 / (i + 1), 4)}
                 for i, c in enumerate(top)
             ],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0},
+            "usage": llm_client.pop_usage(),
         }
