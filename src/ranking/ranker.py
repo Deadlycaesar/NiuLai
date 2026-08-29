@@ -13,7 +13,7 @@ import math
 from src import config
 from src.dialog.state import DialogState
 from src.ranking import llm_client
-from src.retrieval.retriever import constraint_match_token, normalize
+from src.dialog.normalize import normalize
 
 _RERANK_SYSTEM = (
     "You are a product ranking expert for a clothing/shoes/jewelry catalog. "
@@ -28,38 +28,44 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
         return []
     total = max(len(candidates), 1)
 
-    # 预计算每条约束的匹配串与权重
-    weighted_tokens: list[tuple[str, float]] = []
-    for slot in state.slots:
-        token = constraint_match_token(slot.value)
-        if not token or token.startswith("budget"):
-            continue
-        base = 2.0 if slot.hard else 0.75
-        length_bonus = 1.0 + min(len(token), 60) / 30.0   # 长逐字片段 → 最高 3 倍
-        weighted_tokens.append((token, base * length_bonus))
-        # 分片兜底（实验 15）：长规格串一旦被改写重组（"75% Polyester, 20% Rayon" →
-        # "20% Rayon, 75% Polyester"），整串匹配立刻失效，但每个成分仍逐字存在于商品全文里。
-        # 故对逗号分隔的多成分约束，额外登记各成分作为低权重匹配串。
-        # 权重低于整串是有依据的：部分命中本就是更弱的证据。
-        if config.FRAGMENT_WEIGHT:
+    # 每槽一组归一化 terms（A 产出；空列表 = 该槽不参与文本匹配，budget 槽即如此）。
+    # 计权取命中的最长 term、同槽不重复计分（SPEC §5 消费约定）
+    slot_matchers = [(slot.terms, 2.0 if slot.hard else 0.75)
+                     for slot in state.slots if slot.terms]
+
+    # 分片兜底（C-T8，实验 15）：长规格串一旦被改写重组（"75% Polyester, 20% Rayon" →
+    # "20% Rayon, 75% Polyester"），整串匹配立刻失效，但每个成分仍逐字存在于商品全文里。
+    # 故对逗号分隔的多成分约束，额外登记各成分作为低权重匹配串，独立于主 terms 加分。
+    # 权重低于整串是有依据的：部分命中本就是更弱的证据。
+    fragment_tokens: list[tuple[str, float]] = []
+    if config.FRAGMENT_WEIGHT:
+        for slot in state.slots:
+            if not slot.terms:
+                continue
             parts = [p.strip() for p in slot.value.split(",")]
             if len(parts) >= 2:
+                base = 2.0 if slot.hard else 0.75
                 for part in parts:
-                    piece = constraint_match_token(part)
-                    if len(piece) >= 4 and piece != token:
-                        weighted_tokens.append((piece, base * config.FRAGMENT_WEIGHT))
+                    piece = normalize(part)
+                    if len(piece) >= 4 and piece != slot.terms[0]:
+                        fragment_tokens.append((piece, base * config.FRAGMENT_WEIGHT))
 
     norm_category = normalize(state.category) if state.category else ""
 
     # 先验衰减系数：证据越多，先验越该让位给证据（第 1 轮无证据时先验全权重）
-    evidence = len(weighted_tokens)
+    evidence = len(slot_matchers)
     prior_scale = 1.0 / (1.0 + config.PRIOR_DECAY * evidence) if config.PRIOR_DECAY else 1.0
     if config.EARLY_PRIOR_BOOST != 1.0 and len(state.history) <= config.EARLY_TURNS:
         prior_scale *= config.EARLY_PRIOR_BOOST
 
     def score(c: dict) -> float:
         text = c.get("norm_text", "")
-        s = sum(weight for token, weight in weighted_tokens if token in text)
+        s = 0.0
+        for terms, base in slot_matchers:
+            hit_len = max((len(t) for t in terms if t in text), default=0)
+            if hit_len:
+                s += base * (1.0 + min(hit_len, 60) / 30.0)   # 长逐字片段 → 最高 3 倍
+        s += sum(weight for piece, weight in fragment_tokens if piece in text)  # C-T8 分片兜底
         # 开场句的品类 = 评测器用目标商品 categories 尾部生成，精确命中是强判别信号
         if norm_category and c.get("coarse_cat") == norm_category:
             s += 2.5

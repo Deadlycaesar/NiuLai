@@ -11,6 +11,9 @@ class Slot:
     value: str            # 约束原文（评测器逐字吐出，保留原文用于子串匹配）
     hard: bool            # 硬约束(过滤/强加权) or 软偏好
     turn_added: int
+    terms: list[str] = field(default_factory=list)
+                          # 归一化检索词（A 产出，判别力降序；空 = 不参与文本匹配）。
+                          # B/C 直接消费；匹配取命中的最长 term 计权（SPEC §5）
 
 
 @dataclass

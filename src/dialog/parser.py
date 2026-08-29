@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 
+from src.dialog.normalize import constraint_terms
 from src.dialog.state import DialogState, Slot
 
 # 与评测器 classify_constraint 保持一致的镜像分类器（不 import evaluator，避免循环依赖）
@@ -50,7 +51,10 @@ def _add_constraint(state: DialogState, value: str, turn: int, hard: bool = True
         match = _BUDGET_RE.search(value)
         if match:
             state.budget = float(match.group(1))
-    state.slots.append(Slot(attribute=attribute, value=value, hard=hard, turn_added=turn))
+    state.slots.append(Slot(
+        attribute=attribute, value=value, hard=hard, turn_added=turn,
+        terms=constraint_terms(value),
+    ))
 
 
 def _promote_or_add(state: DialogState, value: str, turn: int) -> None:

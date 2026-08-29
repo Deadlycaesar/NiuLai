@@ -139,8 +139,10 @@ class Slot:
     hard: bool          # 硬约束(过滤/强加权) or 软偏好(仅加权)
     turn_added: int
     terms: list[str] = field(default_factory=list)
-                        # 归一化检索词（A 产出：内嵌分号切分、"Key: value" 剥离），
-                        # B/C 直接消费，不用碰文案的脏；空列表则回退用 value
+                        # 归一化检索词（A 产出，见 src/dialog/normalize.py），B/C 直接消费，
+                        # 不碰文案的脏。消费约定：同槽多 term 取命中的最长者计权、
+                        # 不重复计分；**空列表 = 本槽不参与文本匹配**（budget 槽即如此，
+                        # 价格信号走 state.budget，不做数字串子串匹配）
 
 @dataclass
 class DialogState:

@@ -6,7 +6,8 @@ B 接手后：升级字段加权、加稠密向量路 + RRF 融合、结构化�
 
 Candidate 字段说明（A 的信息增益策略依赖 color/material/price 等结构化字段算熵）：
   parent_asin, title, price(float|None), color(str|None), material(str|None),
-  norm_text(归一化全文，用于约束子串匹配), bm25_rank(int, 越小越好), match_count(int),
+  norm_text(归一化全文，用于约束子串匹配), bm25_rank(int, 越小越好),
+  match_count(int, 命中的槽位数——slot.terms 任一命中即计该槽),
   rating_number(int, 评论数) / feature_count(int, features 条数)——M3 的先验轴打分用
 """
 
@@ -18,6 +19,7 @@ import sqlite3
 from pathlib import Path
 
 from src import config
+from src.dialog.normalize import normalize
 from src.dialog.state import DialogState
 from src.retrieval.dense import DenseIndex
 
@@ -44,19 +46,6 @@ def _searchable_text(product: dict) -> str:
         elif value is not None:
             parts.append(str(value))
     return " ".join(parts).strip()
-
-
-def normalize(text: str) -> str:
-    """小写 + 非字母数字折叠为单空格。约束原文和商品全文都过这个，子串匹配才稳。"""
-    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
-
-
-def constraint_match_token(value: str) -> str:
-    """把一条约束原文变成用于子串匹配的归一化串。'color: blue' 只匹配颜色词本身。"""
-    lowered = value.lower()
-    if lowered.startswith("color:"):
-        return normalize(lowered.split(":", 1)[1])
-    return normalize(value)
 
 
 def coarse_category(values: list[str]) -> str:
@@ -141,7 +130,7 @@ class Retriever:
     # 消融记录：RRF(k=60) 平权融合实测负收益（Recall@100 0.995→0.970，avg_pos 25.6→30.2）——
     # 稠密查询含 "Imported"/礼物话术等语义噪声，噪声候选把 BM25 池 40-100 位的好候选挤出截断线。
     # 且 retrieve() 返回顺序不影响下游打分（rank() 用自有公式重排），融合只需保证"捞全"。
-    def _fuse_dense(self, state: DialogState, candidates: list[dict], match_tokens: list[str]) -> list[dict]:
+    def _fuse_dense(self, state: DialogState, candidates: list[dict], slot_terms: list[list[str]]) -> list[dict]:
         dense_hits = self.dense.search(self._dense_query(state), config.DENSE_TOP_K)
         have = {c["parent_asin"] for c in candidates}
         # 有预算约束时，稠密补充的候选同样受价格窗约束（镜像 budget 硬过滤的意图）
@@ -154,7 +143,7 @@ class Retriever:
             if low is not None and (info["price"] is None or not (low <= info["price"] <= high)):
                 continue
             # 稠密路独有候选：补齐 Candidate 字段，bm25_rank 给哨兵值（不打乱 BM25 名次语义）
-            matched = sum(1 for t in match_tokens if t in info["norm_text"])
+            matched = sum(1 for terms in slot_terms if any(t in info["norm_text"] for t in terms))
             candidates.append({**info, "bm25_rank": config.CANDIDATE_POOL, "match_count": matched})
             have.add(asin)
         return candidates
@@ -169,12 +158,12 @@ class Retriever:
             "FROM products WHERE products MATCH ? ORDER BY score LIMIT ?",
             (query, config.CANDIDATE_POOL),
         )
-        match_tokens = [constraint_match_token(v) for v in state.constraint_values()]
-        match_tokens = [t for t in match_tokens if t and not t.startswith("budget")]
+        # 每槽一组归一化 terms（A 产出，SPEC §5；空列表 = 该槽不参与文本匹配）
+        slot_terms = [slot.terms for slot in state.slots if slot.terms]
         candidates: list[dict] = []
         for rank, (parent_asin, _score) in enumerate(cursor.fetchall()):
             info = self.products[parent_asin]
-            matched = sum(1 for token in match_tokens if token in info["norm_text"])
+            matched = sum(1 for terms in slot_terms if any(t in info["norm_text"] for t in terms))
             candidates.append({**info, "bm25_rank": rank, "match_count": matched})
 
         # budget 硬过滤（±PRICE_WINDOW），过滤后不足 k 个则放宽为软加权
@@ -190,5 +179,5 @@ class Retriever:
         # 稠密路补充召回（spec §1-⑤；self.dense 为 None 时跳过，纯 BM25 与 v1 一致）。
         # 放在截断【之后】追加：BM25 top-k 一个不动，稠密独有候选附在队尾，保证不被截掉。
         if self.dense is not None:
-            candidates = self._fuse_dense(state, candidates, match_tokens)
+            candidates = self._fuse_dense(state, candidates, slot_terms)
         return candidates
