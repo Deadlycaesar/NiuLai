@@ -37,6 +37,7 @@ def chat_json(system: str, user: str, max_tokens: int = 200) -> dict | None:
         ],
         "thinking": {"type": "disabled"},
         "response_format": {"type": "json_object"},
+        "temperature": 0,   # 排序任务要可复现；不固定温度时同一会话两次重排结果会不同
         "max_tokens": max_tokens,
     }).encode()
     request = urllib.request.Request(
