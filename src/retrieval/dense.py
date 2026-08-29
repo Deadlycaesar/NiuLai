@@ -24,6 +24,7 @@ class DenseIndex:
         self.asins = asins          # (N,) str 数组，与 matrix 行一一对应
         self.matrix = matrix        # (N, 384) float32，已归一化
         self.model = model          # SentenceTransformer
+        self._vec_cache: dict[str, object] = {}  # 查询文本 → 向量（约束问干后逐轮不变，省重复编码）
 
     @classmethod
     def from_env(cls) -> "DenseIndex | None":
@@ -51,11 +52,14 @@ class DenseIndex:
             return []
         import numpy as np
 
-        vector = self.model.encode(
-            [QUERY_INSTRUCTION + query_text],
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )[0].astype(np.float32)
+        vector = self._vec_cache.get(query_text)
+        if vector is None:
+            vector = self.model.encode(
+                [QUERY_INSTRUCTION + query_text],
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+            )[0].astype(np.float32)
+            self._vec_cache[query_text] = vector
         sims = self.matrix @ vector
         top_k = min(top_k, len(self.asins))
         # argpartition 拿 top-k 再局部排序，避免全量 sort
