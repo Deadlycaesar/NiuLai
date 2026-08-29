@@ -70,10 +70,15 @@ class Retriever:
             "tokenize='unicode61 remove_diacritics 2')"
         )
         rows = []
+        self.skipped_lines = 0  # ⚠️ 构造期抛异常 = 整场评测崩（评测器不保护构造），坏行必须跳过
         with Path(catalog_path).open(encoding="utf-8") as handle:
             for line in handle:
-                product = json.loads(line)
-                parent_asin = str(product["parent_asin"])
+                try:
+                    product = json.loads(line)
+                    parent_asin = str(product["parent_asin"])
+                except Exception:
+                    self.skipped_lines += 1
+                    continue
                 text = _searchable_text(product)
                 price = product.get("price")
                 try:

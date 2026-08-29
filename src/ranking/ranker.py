@@ -33,22 +33,8 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
     slot_matchers = [(slot.terms, 2.0 if slot.hard else 0.75)
                      for slot in state.slots if slot.terms]
 
-    # 分片兜底（C-T8，实验 15）：长规格串一旦被改写重组（"75% Polyester, 20% Rayon" →
-    # "20% Rayon, 75% Polyester"），整串匹配立刻失效，但每个成分仍逐字存在于商品全文里。
-    # 故对逗号分隔的多成分约束，额外登记各成分作为低权重匹配串，独立于主 terms 加分。
-    # 权重低于整串是有依据的：部分命中本就是更弱的证据。
-    fragment_tokens: list[tuple[str, float]] = []
-    if config.FRAGMENT_WEIGHT:
-        for slot in state.slots:
-            if not slot.terms:
-                continue
-            parts = [p.strip() for p in slot.value.split(",")]
-            if len(parts) >= 2:
-                base = 2.0 if slot.hard else 0.75
-                for part in parts:
-                    piece = normalize(part)
-                    if len(piece) >= 4 and piece != slot.terms[0]:
-                        fragment_tokens.append((piece, base * config.FRAGMENT_WEIGHT))
+    # 长约束分片兜底已迁入 A 的 constraint_terms（Slot.terms 接口，FRAGMENT_WEIGHT 开关随迁）：
+    # C 实测接口路径与此处旧的独立加分通道等价（±0.004 噪声带），故通道收掉、接口独占。
 
     norm_category = normalize(state.category) if state.category else ""
 
@@ -65,7 +51,6 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
             hit_len = max((len(t) for t in terms if t in text), default=0)
             if hit_len:
                 s += base * (1.0 + min(hit_len, 60) / 30.0)   # 长逐字片段 → 最高 3 倍
-        s += sum(weight for piece, weight in fragment_tokens if piece in text)  # C-T8 分片兜底
         # 开场句的品类 = 评测器用目标商品 categories 尾部生成，精确命中是强判别信号
         if norm_category and c.get("coarse_cat") == norm_category:
             s += 2.5
