@@ -34,6 +34,10 @@ LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "20"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
 
+# M3：热度先验权重（0 = 关闭）。依据：目标取自真实购买记录，真实购买集中在热门商品。
+# ⚠️ 分数随该值单调上升到 w=6，是过拟合信号——保守取 1~2，调高前先看 hard 分项。
+POP_WEIGHT = float(os.environ.get("POP_WEIGHT", "1.5"))
+
 # budget 约束的价格窗口（±比例）
 PRICE_WINDOW = float(os.environ.get("PRICE_WINDOW", "0.3"))
 

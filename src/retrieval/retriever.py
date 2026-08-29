@@ -6,7 +6,8 @@ B 接手后：升级字段加权、加稠密向量路 + RRF 融合、结构化�
 
 Candidate 字段说明（A 的信息增益策略依赖 color/material/price 等结构化字段算熵）：
   parent_asin, title, price(float|None), color(str|None), material(str|None),
-  norm_text(归一化全文，用于约束子串匹配), bm25_rank(int, 越小越好), match_count(int)
+  norm_text(归一化全文，用于约束子串匹配), bm25_rank(int, 越小越好), match_count(int),
+  rating_number(int, 评论数——M3 的热度先验用，见 ranking/ranker.py)
 """
 
 from __future__ import annotations
@@ -99,6 +100,7 @@ class Retriever:
                     "material": material.group(1).lower() if material else None,
                     "color": color.group(1).lower() if color else None,
                     "norm_text": normalize(text),
+                    "rating_number": int(product.get("rating_number") or 0),
                     "coarse_cat": normalize(coarse_category(product.get("categories") or [])),
                 }
                 rows.append((

@@ -1,11 +1,14 @@
-"""M3 排序 —— 骨架占位实现（C 的地盘，接口冻结、实现待换）。
+"""M3 排序（C 的地盘）—— 离线规则打分为默认路径，LLM 精排为可选增强。
 
-当前占位 = 离线规则打分：加权约束命中（硬>软、长约束>短约束）> 精确价格 > BM25 名次。
+打分项：加权约束命中（硬>软、长约束>短约束）> 精确价格 > 热度先验 > BM25 名次。
 长约束加权的依据：约束是目标商品元数据的逐字片段，越长的片段命中越能唯一指认目标。
-C 接手后：加 CPU 交叉编码器重排 + LLM listwise 润色（USE_LLM 开关），保留本函数做离线降级。
+热度先验的依据：目标商品取自真实购买记录，真实购买高度集中在热门商品上——公开集目标
+的 rating_number 中位数 6846，而全目录中位数仅 12（差 570 倍）。见 experiments.md 实验 8。
 """
 
 from __future__ import annotations
+
+import math
 
 from src import config
 from src.dialog.state import DialogState
@@ -49,6 +52,9 @@ def rank(state: DialogState, candidates: list[dict], k: int = 10) -> list[dict]:
                 s += 4.0
             elif state.budget * 0.9 <= c["price"] <= state.budget * 1.1:
                 s += 0.5
+        # 热度先验：log 压缩后归一化到 0..1（rating_number 跨度 0~10 万，线性会淹没约束信号）
+        if config.POP_WEIGHT:
+            s += config.POP_WEIGHT * (math.log10(1 + c.get("rating_number", 0)) / 5.0)
         s += 1.0 - (c.get("bm25_rank", total) / total)  # BM25 名次归一化到 0..1
         return s
 
