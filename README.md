@@ -1,115 +1,225 @@
-# TechJam Conversational E-Commerce Search Challenge
+# NiuLai — Conversational Shopping Agent
 
-Build an AI shopping agent that asks useful follow-up questions and recommends the customer's hidden target product within at most 10 turns.
+**TikTok TechJam 2026 · Track 4 — Shopping Copilot: AI Conversational Search and Recommendations**
 
-## What You Receive
+A multi-turn shopping agent that locates a customer's intended product among 50,000 items within 10
+conversational turns.
 
-- A frozen catalog of 50,000 products from the `Clothing_Shoes_and_Jewelry` category of Amazon Reviews 2023.
-- 200 labeled public sessions for local development.
-- A weak BM25 starter agent and deterministic local evaluator.
-- The Agent API contract and scoring rules.
+| | Public set (200 sessions) |
+|---|---|
+| **TechnicalScore** | **0.9694** |
+| HitRate@10 | **1.000** — all 200 sessions converted |
+| MRR | 0.975 |
+| MTTC | 2.155 turns |
+| Official weak-BM25 baseline | 0.107 |
 
-The organizer keeps 800 additional sessions private for final evaluation.
+Runs fully offline: **no third-party dependencies, no network calls, no API cost.** A full
+200-session evaluation completes in **~10 seconds**, and we verified it under a simulated total
+network outage (experiment 29).
 
-## Task
-
-For each session, your agent receives an anonymized preference profile and a short customer message. Raw user IDs, review text, timestamps, and purchase history are never disclosed. On every turn the agent may:
-
-- ask a natural clarification question in `message` and identify one requested field in `ask_attribute`;
-- return a ranked list of up to 10 catalog `parent_asin` values;
-- do both in the same response.
-
-The session ends when the target product appears in the scored Top 10 or after turn 10. Sessions cover Buying, Browsing, Intent Override, and Boundary behavior.
-
-## Prepare the Catalog
-
-The repository includes the 19 MB compressed catalog (`catalog.jsonl.gz`) and its
-published `SHA256SUMS` file. Before running the agent, verify and extract it with
-the standard-library helper (Python 3.10+):
+## Quick start
 
 ```bash
-python scripts/prepare_catalog.py
+python3 scripts/prepare_catalog.py     # verify SHA-256 and extract the catalogue (once)
+python3 -m evaluator.local_evaluator   # → recommended_technical_score: 0.9694
 ```
 
-This creates the ignored local file `data/catalog.jsonl` (about 58 MB). The helper
-checks the archive SHA-256 before extraction. To replace an existing extracted
-catalog, run `python scripts/prepare_catalog.py --force`.
+Python 3.10+. **Nothing to install** — the submitted configuration uses only the standard library.
+`requirements.txt` covers a single optional dense-retrieval route that is disabled by default; if
+those packages are absent the system degrades byte-identically to the default path.
 
-## Run the Starter
+## How it works
 
-Python 3.10 or later is recommended. The starter uses only the Python standard library.
+The customer discloses requirements gradually; the agent must decide what to ask and what to
+recommend on every turn. Three properties of the evaluation harness shaped our design more than any
+modelling choice:
+
+**The customer never reads our prose.** `customer_reply()` consumes only `ask_attribute`, a single
+value from a 10-item enumeration — the `message` field is type-checked and discarded. Our entire
+channel to the customer is ≈3.3 bits per turn. Clarification copy therefore targets human readers,
+not score.
+
+**Customer utterances are a deterministic function of the target product.** Constraint strings are
+verbatim fragments of the target's own catalogue text, so exact substring matching against the
+catalogue behaves like a fingerprint. This is the single strongest feature in our ranker.
+
+**A hit ends the session and locks in that turn's rank.** Converting at turn 1 in position 7 scores
+0.743; converting at turn 2 in position 1 scores 0.980. We found 31 sessions sitting in exactly that
+losing trade.
+
+### Pipeline
+
+```
+respond()
+  └─ M1  dialogue control  — slot state machine, three-layer parsing defence, question policy
+  └─ M2  retrieval          — FTS5 keyword + per-constraint phrase recall (+ optional dense route)
+  └─ M3  ranking            — offline rule scorer (LLM rerank available but disabled)
+       └─ message + ask_attribute + ranked recommendations
+```
+
+**Ranking signals.** Weighted verbatim constraint hits · intent-card mirror consistency · category
+match · **purchase priors** · normalised BM25 rank.
+
+The purchase priors were the largest single gain. At 0.861 we had 44 sessions where the target sat
+in positions 4–10 with every constraint matched — a tie the scorer could not break, and one that
+dense semantic similarity could not break either (median similarity rank of the target inside those
+ties: 81, versus 3 in sessions we ranked correctly). Instead of asking *which product best matches
+this sentence*, we asked *which product a real person is more likely to have actually bought*:
+
+| Signal | Target products | Whole catalogue |
+|---|---|---|
+| `rating_number` (median) | 6,846 | 12 |
+| has a `price` field | 89.0% | 20.8% |
+
+Both follow from targets being drawn from real purchase records. Adding them resolved 86% of the
+tied sessions.
+
+**Recall.** Keyword retrieval alone loses a specific class of target: an unpopular item whose
+constraints are all boilerplate ("100% Cotton", "Imported") is outranked by thousands of popular
+items sharing those tokens and never enters the candidate pool — ranking cannot recover what
+retrieval never returned. A per-constraint FTS5 *phrase* query returns a pool small enough that such
+targets always survive; those extras are appended without displacing the keyword ordering. This
+closed the last miss on the public set (HitRate → 1.000).
+
+**Question policy.** Always ask `other`. This is provably optimal against the published simulator:
+`classify_constraint()` can never return `category` or `brand`, so asking either is guaranteed to
+return nothing, while `other` matches any undisclosed constraint. A general entropy-based policy
+remains available (`ASK_POLICY=entropy`) and is measured in `team/experiments.md`.
+
+**Low-confidence withholding.** On the first turns the agent returns only its single best candidate
+rather than ten — deliberately trading MTTC for MRR, given that a hit locks in its rank. This is a
+benchmark-shaped behaviour, and we say so plainly in *Limitations*.
+
+## Robustness
+
+The specification reserves the right to add natural-language paraphrasing to the simulator. Because
+the public set uses fixed templates, that exposure is invisible to normal evaluation, so we built a
+harness to measure it (`scripts/paraphrase_stress.py`) — it rewrites customer utterances before the
+agent sees them **without modifying the evaluator**.
+
+The first finding was counter-intuitive: changing only sentence templates, leaving every constraint
+string verbatim, cost **−0.183** — 87% of the total damage. The fragility was in template matching,
+not in verbatim matching. That turned the fix from "understand meaning" into "extract fragments":
+
+| Parsing stack | L0 unmodified | L1 phrasing | L2 + short values | L3 + spec strings | L4 colon-free speech |
+|---|---|---|---|---|---|
+| Strict templates only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
+| **+ rule salvage** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
+| + LLM extraction (`LLM_PARSE=1`) | 0.9694 | 0.9551 | 0.9218 | 0.8896 | **0.9551** |
+
+Three layers, each firing only when the previous one fails: strict templates → rule-based salvage →
+optional verbatim-verified LLM extraction. Layers 2 and 3 are constructed so they cannot fire on the
+public set; the L0 column is unchanged by their presence, session by session.
+
+**Measuring the parser on its own.** End-to-end score mixes parsing, retrieval and ranking, so we
+also score the parser in isolation against ground-truth constraint strings
+(`scripts/parser_accuracy.py`): verbatim recall is 98.8% on unmodified templates, 95.2% under
+paraphrase, and — on colon-free natural speech, where rules bottom out at 0% verbatim — the LLM layer
+restores 76% verbatim and 97.8% partial recall. That metric is what exposed two real defects: values
+containing their own colon were being split apart, and a garbage extraction could "succeed"
+confidently enough to shut the LLM layer out. Both are fixed; the fix is a catalogue verifier, which
+follows from the same first principle as the fingerprint signal — a genuine constraint must occur
+verbatim in *some* product's text, so anything that does not is not a constraint.
+
+## Configuration
+
+Every non-default behaviour is an environment flag, and every flag has a measured ablation in
+`team/experiments.md`.
+
+| Flag | Default | Effect |
+|---|---|---|
+| `USE_LLM` | `0` | LLM listwise reranking. **Disabled deliberately** — see below |
+| `LLM_PARSE` | `0` | LLM fallback for the third parsing layer |
+| `USE_DENSE` | `0` | Dense retrieval route. **Disabled deliberately** — see below |
+| `POP_WEIGHT` / `HAS_PRICE_WEIGHT` | `2.0` / `1.0` | Purchase priors |
+| `MIRROR_BONUS` / `PHRASE_RECALL` | `1.0` / `1` | Intent-card consistency · phrase recall |
+| `EARLY_TOPK` / `EARLY_TURNS` | `1` / `3` | Low-confidence withholding |
+| `ASK_POLICY` | `other_first` | `entropy` selects the general information-gain policy |
+
+**Why LLM reranking is off.** We tested it in a controlled three-arm experiment. Given only titles it
+scored **−0.020**; given the same verbatim-hit evidence the rule scorer sees, the deficit collapsed to
+**−0.0004** (three-run mean 0.9511 ±0.0005). So the original negative result was information
+starvation, not model weakness — but the ceiling is *parity*, because the rule scorer has already
+extracted everything that evidence contains. Enabling it costs ~106× the wall-clock latency and makes
+scores irreproducible. **The LLM earns its place in understanding, not in ranking** (L4 above:
+0.8486 → 0.9551).
+
+**Why dense retrieval is off.** It is worth +0.0016 on the public set and +0.011–0.020 under
+paraphrase stress, and costs 1191 MB peak RSS against 530 MB for the default path (+661 MB is the
+torch runtime itself; the embedding matrix is only 77 MB; an ONNX backend brings this to 787 MB with
+byte-identical scores). The specification reserves the right to impose memory limits without stating
+them, and our graceful degradation covers missing assets but not an out-of-memory kill: the upside is
++0.015 and the downside is the entire run. We keep the route in the codebase — it proved
+Recall@pool = 1.000 — and ship it off, one environment variable away, with the numbers on the table.
+
+## Method
+
+Three rules, adopted after our first over-fitting scare and applied to every change since:
+
+- **Stop where all three difficulty buckets improve together.** The popularity prior kept improving
+  the score up to weight 6 — monotone gain with no plateau is an alarm, not a win. At 2.0 easy,
+  medium and hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0.
+- **Convert small gains into sessions.** With 200 samples one session is worth 0.0007–0.0025, so a
+  +0.0009 result is one session flipping. Three such "improvements" were rejected on this basis.
+- **Simulate the failure of every assumption.** Three implementations of the withholding rule scored
+  identically on the public set; only a simulated parser failure revealed that one degrades to
+  HitRate 0.950 while another exits safely.
+
+`team/experiments.md` logs every experiment, including the rejected ones. We also proved our own
+ceiling (`scripts/ceiling_diagnostic.py`): of the 8 sessions not ranked first, **7 are
+information-theoretically indistinguishable** — the target shares an identical intent card and
+category with other catalogue items, so the generated dialogue is byte-identical. One such target has
+46 twins. Reachable remaining MRR is 0.00075, below our own noise threshold.
+
+## Limitations
+
+Our strongest signals are fitted to a simulator whose generation rules are published. The verbatim
+fingerprint, the intent-card mirror bonus and the withholding policy would all need rethinking in a
+production setting: real shoppers do not quote catalogue text, and no storefront shows a single
+product on the first screen. `MIRROR_BONUS=0 EARLY_TOPK=0` disables both benchmark-shaped mechanisms;
+the system still scores **0.9383 with HitRate 1.000** in that configuration, and the general
+machinery underneath — keyword plus phrase retrieval, non-displacing fusion, independent re-ranking
+over match, category and purchase-likelihood features — is the standard commercial shape.
+
+Our ranker is a hand-weighted linear scorer. With behavioural data at commercial scale the natural
+successor is a learned ranker (LambdaMART/XGBoost over the same features); with 200 labelled sessions,
+hand weights plus an explicit stopping rule are the more honest choice, and we treat that as a
+data-regime decision rather than an architectural preference.
+
+## Reproduction and verification
 
 ```bash
-python3 -m evaluator.local_evaluator
+python3 scripts/check_guards.py        # red-line self-check + full unit-test collection
+python3 -m unittest discover -s tests  # 30 unit tests
+python3 scripts/paraphrase_stress.py   # robustness across the stress levels
+python3 scripts/parser_accuracy.py     # parser accuracy in isolation
+python3 scripts/ceiling_diagnostic.py  # remaining headroom, decomposed
+python3 scripts/trace_session.py --id public_0007   # inspect a single conversation
 ```
 
-Edit `starter/agent.py` to implement your system. Do not edit the evaluator or public labels when reporting your local score.
-The command writes per-session results and aggregate metrics to `results.json`.
+`check_guards.py` verifies that `evaluator/` and `data/public_set.jsonl` are byte-identical to the
+official kit, that `starter/agent.py` remains a forwarding shell, that no credentials are committed,
+and that every declared test is actually collected.
 
-The included weak BM25 starter scores Hit Rate@10 `0.125`, MRR `0.068034`, and
-MTTC `9.81` on the released public set. See `docs/baseline_results.json`.
+Latency, token usage and cost: [`team/成本与延迟披露.md`](team/成本与延迟披露.md).
+Written report: [`REPORT.md`](REPORT.md).
 
-## Agent Interface
+## Team
 
-```python
-class Agent:
-    def reset(self, session_id: str, user_profile: dict) -> None:
-        ...
+| | Module |
+|---|---|
+| Chen Zhilong | M1 dialogue control, submission |
+| Zhou Junkai | M2 retrieval |
+| Lin Xiaoxiao | M3 ranking & generation |
+| Bi Yongqi | M4 memory & context |
 
-    def respond(self, session_id: str, user_message: str, turn: int, top_k: int) -> dict:
-        return {
-            "message": "Do you have a material preference?",
-            "ask_attribute": "material",
-            "recommendations": [
-                {"parent_asin": "B000..."},
-                {"parent_asin": "B001..."}
-            ],
-            "usage": {"prompt_tokens": 120, "completion_tokens": 30}
-        }
-```
+Per-member contributions, in their own words: [`REPORT.md`](REPORT.md) §9.
 
-`ask_attribute` is one of `category`, `material`, `color`, `size`, `style`, `brand`, `budget`, `feature`, `use_case`, `other`, or `null`. See `docs/agent_api_contract.json`.
+- **Devpost:** TODO(A)
+- **Demo video:** TODO(A)
 
-## Technical Metrics
+## Data
 
-- **Hit Rate@10:** fraction of sessions that find the target within 10 turns.
-- **MRR:** mean reciprocal rank of the target; a miss contributes zero.
-- **MTTC:** mean first-hit turn; a miss is assigned turn 11.
-- **Reported token usage:** prompt and completion tokens returned by the team's model client.
-
-```text
-TechnicalScore = 0.50 × HitRate@10 + 0.30 × MRR + 0.20 × Efficiency
-Efficiency = clip((11 - MTTC) / 10, 0, 1)
-```
-
-`TechnicalScore` is an objective input to the `Technical Execution` assessment. It is not a separate judging criterion and does not represent the entire `Technical Execution` score.
-
-Only exact `parent_asin` equality produces a hit. Core metrics are also reported by scenario.
-
-## Model Choice and Cost
-
-Teams may use any legally accessible LLM API or local model. Teams manage their own credentials and must never commit API keys. Model choice, estimated cost, token usage, and latency must be disclosed. Token usage is a feasibility metric, not part of the core technical score. The organizer does not provide or reimburse model API credits; teams are responsible for any costs incurred through optional external services.
-
-## Files
-
-```text
-data/public_set.jsonl             200 labeled development sessions
-docs/competition_specification.md participant rules and evaluation protocol
-docs/agent_api_contract.json      machine-readable Agent contract
-docs/evaluation_config.json       scoring configuration
-docs/baseline_results.json        reproducible weak-starter reference score
-starter/agent.py                  editable weak starter
-evaluator/local_evaluator.py      public-set simulator and scorer
-```
-
-## Judging and Submission Policy
-
-- Participant submission requirements: `docs/submission_rules.md`
-- Organizer-only final judging controls: `organizer/JUDGING_RUNBOOK.md`
-- Organizer private release checklist: `organizer/private_release_checklist.md`
-- Judging day operations SOP: `organizer/JUDGING_DAY_SOP.md`
-
-## Data Source
-
-The catalog and sessions are derived from Amazon Reviews 2023 by McAuley Lab, UCSD. See `DATA_ATTRIBUTION.md` before using or redistributing the data.
-Sessions are sampled deterministically from the official Clothing 5-core leave-last-out split and joined to the frozen catalog.
+Derived from **Amazon Reviews 2023** (McAuley Lab, UCSD). See
+[`DATA_ATTRIBUTION.md`](DATA_ATTRIBUTION.md). The frozen 50,000-product catalogue and the 200
+labelled public sessions are the organiser's; we modified neither.

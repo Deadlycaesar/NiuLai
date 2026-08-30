@@ -1,19 +1,3 @@
-<!--
-给统稿人的说明 —— 定稿前删掉这段注释：
-0. ⚠️ 主笔归属已变更（留言板 T-014 ①）：**@陈智龙 落笔、@BestBucky 审阅**。
-   下面第 2 条「D 的 AI 助手不可用」的前提已不成立，D 的 §8/§9 部分已自行补完。
-
-1. 语言：写成英文，因为这是给评委看的（官方文档、Devpost 都是英文）。
-   团队内部文档保持中文不变。
-2. 这是**草稿**，C 起的。你的 AI 助手不可用，所以我没给大纲、直接给了可编辑的初稿。
-   每个数字都可复现，命令写在 §7。
-3. 需要你补的地方我用 `TODO(D)` 标出来了，主要是 §6 团队贡献里各人的自述，
-   和 §8 你想加的个人反思。
-4. 篇幅：submission_rules 要求 "a short report"，现在约 1300 词，是合适的长度。
-   要砍先砍 §5（Limitations 里的第 3、4 条）。
-5. 引用的原始数据全在 team/experiments.md（27 组实验）与 team/成本与延迟披露.md。
--->
-
 # NiuLai — Conversational E-Commerce Search Agent
 
 **TikTok TechJam 2026 · Track 4** · Team NiuLai · Final report
@@ -114,21 +98,48 @@ The result is a three-layer defence, each layer firing only when the previous on
 
 Measured across stress levels (L0 = unmodified public set):
 
-| | L0 | L1 phrasing | L2 + short values | L3 + spec strings | L4 no-colon |
+| Parsing stack | L0 | L1 phrasing | L2 + short values | L3 + spec strings | L4 colon-free |
 |---|---|---|---|---|---|
-| Before | 0.9620 | 0.7792 | 0.7585 | 0.7523 | 0.8330 |
-| After | **0.9694** | **0.9501** | **0.9218** | **0.8896** | **0.9327** |
+| Layer 1 only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
+| **+ Layer 2** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
+| + Layer 3 (`LLM_PARSE=1`) | 0.9694 | 0.9551 | 0.9218 | 0.8896 | **0.9551** |
 
 Layer 2 is constructed so it can only fire when strict templates miss — it is byte-for-byte inert on
 the public set. Layer 3 additionally validates that anything the model returns is a contiguous
 substring of the original message; fingerprint evidence outranks the model's linguistic taste.
+
+**Weighing the parser on its own scale.** End-to-end score is a poor instrument for a parsing
+defect: it mixes parsing with retrieval and ranking, and a dropped constraint often costs a fraction
+of a rank rather than a session. So we scored the parser in isolation against ground-truth constraint
+strings (`scripts/parser_accuracy.py`, 450 messages × 5 stress levels × 2 arms):
+
+| | L0 | L1 phrasing | L4 colon-free |
+|---|---|---|---|
+| Verbatim recall, rules only | 98.8% | 95.2% | 0% |
+| Verbatim recall, + Layer 3 | 98.8% | 95.2% | **76.0%** |
+| Partial recall, + Layer 3 | 100% | 99.5% | **97.8%** |
+
+The metric immediately paid for itself by exposing two defects that end-to-end score had absorbed
+silently. Constraint values containing their own colon (`Department: womens`, roughly one in eight)
+were being cut apart by a last-colon rule, capping L1 verbatim recall at 76%. And a garbage
+extraction could *succeed confidently* — returning fragments padded with conversational filler — which
+shut Layer 3 out precisely when it was needed most. This is the failure mode a cascade has and a
+parallel ensemble does not, and we say so rather than claiming the architecture is free of trade-offs.
+
+Both were fixed with a mechanism that follows from the same first principle as the fingerprint
+signal: a genuine constraint must occur verbatim in *some* product's catalogue text. The retriever
+already answers that question in under a millisecond, so the parser now proposes two colon
+candidates and keeps the one the catalogue verifies; an extraction that verifies nothing is not
+treated as success, and Layer 3 fires. The fix moved L1 verbatim recall from 76.2% to 95.2%, L4
+partial recall from 77.0% to 97.8%, and lifted the hardest stress level from 0.9327 to **0.9551** —
+parity with L1 — while leaving the public set byte-identical, session by session.
 
 ## 5. Model choice: we tested the LLM in both positions and only one worked
 
 | LLM used for | Measured | Verdict |
 |---|---|---|
 | **Ranking** (listwise rerank of top-20) | titles only: **−0.020**; with hit evidence: **−0.0004** (3-run mean 0.9511 ±0.0005) | Ceiling is *parity*, not improvement |
-| **Understanding** (parsing paraphrased utterances) | L4 stress **0.8330 → 0.9327** | Genuinely irreplaceable |
+| **Understanding** (parsing paraphrased utterances) | L4 stress **0.8486 → 0.9551** | Genuinely irreplaceable |
 
 The first negative result was initially read as "the LLM is bad at this". A controlled experiment
 showed otherwise: it was information starvation. Once the model sees the same verbatim-hit evidence
@@ -136,6 +147,15 @@ the rule scorer sees, the deficit collapses from −0.020 to −0.0004 — but i
 because the rule scorer has already extracted everything that evidence contains. Enabling it costs
 **~106× the wall-clock latency** (9.7 s → 18 min for the full set) and makes scores irreproducible
 (server-side variation persists at `temperature=0`).
+
+These two results are the same finding seen from opposite ends. The constraints in this benchmark
+are verbatim quotations from catalogue text, so in the ranking stage — where the text is already
+matched — semantics has nothing left to add. In the parsing stage under paraphrase, the verbatim
+signal is exactly what has been destroyed, and semantics is the only thing that can recover it.
+**Semantic capability pays precisely where verbatim signal dies.** A production system faces the
+opposite distribution from this benchmark: real shoppers do not quote product copy, so the L4 end of
+our table is closer to their reality than L0 is, and the balance of rules and models should shift
+accordingly.
 
 **So the LLM is used to listen, not to rank.** Both LLM paths default to off; the offline path is the
 only default path. Model: GLM-4.7-Flash (free tier), swappable via `LLM_BASE_URL` / `LLM_MODEL`.
@@ -152,7 +172,7 @@ left 0.008 on the table.
 
 **Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
 0.0007–0.0025. A tuning result of +0.0009 is one session flipping — indistinguishable from noise. We
-rejected two such "improvements".
+rejected three such "improvements".
 
 **Every assumption gets a failure simulation.** Three implementations of the withholding rule scored
 identically on the public set; only by simulating parser failure did we find that one of them
@@ -175,7 +195,8 @@ private-set generalisation.
 ```bash
 python3 scripts/prepare_catalog.py        # verify SHA-256, extract catalogue (once)
 python3 -m evaluator.local_evaluator      # 0.9694 — no dependencies, no network, ~10 s
-python3 scripts/check_guards.py           # red-line self-check + 26 unit tests
+python3 scripts/check_guards.py           # red-line self-check + 30 unit tests
+python3 scripts/parser_accuracy.py        # parser accuracy in isolation
 python3 scripts/paraphrase_stress.py      # robustness across 5 stress levels
 python3 scripts/ceiling_diagnostic.py     # remaining headroom, decomposed
 ```
@@ -204,7 +225,23 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
    an OOM kill does not degrade at all. Thirty hours from the deadline we were not willing to
    trade an unbounded downside for a conditional gain — but it is one environment variable away
    if those limits turn out to be generous.
-4. **Latency was measured on one machine** (Apple M5). Absolute numbers will differ; the ~106× ratio
+4. **Two of our mechanisms are shaped by the benchmark rather than by shopping.** The intent-card
+   mirror bonus mirrors a generator that exists only in the evaluator, and withholding all but one
+   recommendation on early turns is the opposite of what a storefront should do. We treat these as
+   measured, removable mechanisms rather than as architecture: `MIRROR_BONUS=0 EARLY_TOPK=0` disables
+   both, and the system still scores **0.9383 with HitRate 1.000**. What remains underneath is the
+   conventional commercial shape — keyword plus phrase retrieval, non-displacing candidate union,
+   and independent re-ranking over match evidence, category and purchase-likelihood features. The
+   mirror bonus also has a production analogue we did not have room to build: a constraint matching a
+   product's *salient* attributes (title, structured specs, leading feature bullets) is stronger
+   evidence than one matching a phrase buried in paragraph eight of a description.
+5. **Our ranker is a hand-weighted linear scorer.** With behavioural data at commercial scale the
+   natural successor is a learned ranker — LambdaMART or gradient-boosted trees over the same
+   features, plus a cross-encoder over the low-confidence tail. With 200 labelled sessions, learning
+   the weights would mean learning the public set; hand weights plus an explicit stopping rule are
+   the more honest instrument at this data volume. We regard this as a data-regime decision, not an
+   architectural preference, and it is the first thing we would change given real traffic.
+6. **Latency was measured on one machine** (Apple M5). Absolute numbers will differ; the ~106× ratio
    between offline and LLM paths should not.
 
 ## 9. Team contributions
@@ -246,10 +283,19 @@ where judges look for evidence of real collaboration.
 > teammates caught a chart whose bars overlapped and a decision threshold with a hole in the
 > middle. Both corrections are in the log, next to the results.
 
-TODO(A): one line still missing — @Chen Zhilong.
+> **Chen Zhilong (A):** I built the first working version, and the most useful thing I can say about
+> it is that it was wrong in ways the score did not show me. My override handling had a logic bug
+> that the public set was too forgiving to expose; two batches of tests I wrote were never executed
+> at all because I wrote them in the wrong style, and a teammate's guard caught the second batch
+> within hours of the first. The pattern in all three is the same: the end-to-end number is a
+> comfortable instrument, and comfortable instruments hide defects in the layer furthest upstream.
+> That is why I proposed scoring the parser on its own — if parsing drops a constraint, nothing
+> downstream can win it back, no matter how good the ranking is. The metric found two real defects
+> in my own code within an hour of existing, and fixing them lifted our hardest robustness level by
+> 0.02. I would rather be judged on that loop than on the prototype.
 
 ---
 
-*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (33 logged
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (35 logged
 experiments, including the ones we rejected), [`team/成本与延迟披露.md`](team/成本与延迟披露.md),
 and the four module handover documents under `team/`.*
