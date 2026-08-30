@@ -11,7 +11,9 @@
     Live rank-1 count: python3 -m evaluator.local_evaluator  (192/200; was 106 before)
 
     LAYOUT BUDGET — keep these or text collides (this already bit prior-axis.svg once):
-      row label      x 120 …  700   (font 34, <= 30 chars)
+      row marker     x 120 (✗ / ✓, 40px) — @陈智龙 T-019: in a 3-second read,
+                     colour + symbol lands faster than parsing a number
+      row label      x 166 …  700   (font 34, <= 28 chars)
       stacked bar    x 720 … 1560   (total width 840 = score 1.000)
       total value    right-aligned at x 1800, 62px mono
       body copy      font-size <= 34 and <= 92 chars per line
@@ -40,7 +42,8 @@
   <text x="600" y="322" fill="#8D9C96" font-size="27">Efficiency</text>
 
   <!-- ── Row A : turn 1, rank 7 ── -->
-  <text x="120" y="432" fill="#8D9C96" font-size="34">Convert on turn 1, at rank 7</text>
+  <text x="120" y="437" fill="#7A6A62" font-size="40" font-weight="700">✗</text>
+  <text x="166" y="432" fill="#8D9C96" font-size="34">Convert on turn 1, at rank 7</text>
   <rect x="720" y="398" width="420" height="56" fill="#33463E"/>
   <rect x="1140" y="398" width="36"  height="56" fill="#3ED39A"/>
   <rect x="1176" y="398" width="168" height="56" fill="#4A5C69"/>
@@ -48,7 +51,8 @@
         font-family="'IBM Plex Mono',ui-monospace,monospace">0.743</text>
 
   <!-- ── Row B : turn 2, rank 1 ── -->
-  <text x="120" y="562" fill="#E7EEEA" font-size="34" font-weight="600">Convert on turn 2, at rank 1</text>
+  <text x="120" y="567" fill="#4EE0A8" font-size="40" font-weight="700">✓</text>
+  <text x="166" y="562" fill="#E7EEEA" font-size="34" font-weight="600">Convert on turn 2, at rank 1</text>
   <rect x="720" y="528" width="420" height="56" fill="#33463E"/>
   <rect x="1140" y="528" width="252" height="56" fill="url(#mrr)"/>
   <rect x="1392" y="528" width="151" height="56" fill="#4A5C69"/>

@@ -67,5 +67,6 @@
   <line x1="120" y1="912" x2="1800" y2="912" stroke="#2C3833" stroke-width="2"/>
   <text x="120" y="968" fill="#E7EEEA" font-size="34">Targets come from <tspan fill="#4EE0A8" font-weight="700">real purchase records</tspan>.</text>
   <text x="120" y="1012" fill="#E7EEEA" font-size="34">People buy popular items — and only items that sold have price data.</text>
-  <text x="120" y="1054" fill="#66756F" font-size="25">Two signals that were sitting in the data, unused.　　Top bars not to scale — magnitude only.</text>
+  <text x="120" y="1054" fill="#8D9C96" font-size="30">Two signals that were sitting in the data, unused.</text>
+  <text x="1800" y="1054" fill="#8D9C96" font-size="30" text-anchor="end">Top bars not to scale — magnitude only.</text>
 </svg>
