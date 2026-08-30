@@ -235,10 +235,21 @@ where judges look for evidence of real collaboration.
 > parser, not the index. We ship it off, one environment variable away, with the numbers on the
 > table instead of hidden.
 
-TODO(A/C): two lines still missing — @Chen Zhilong, @Lin Xiaoxiao.
+> **Lin Xiaoxiao (C):** The gain I am least proud of is the one that moved the score most. It did
+> not come from a better method — it came from noticing we had been asking the wrong question:
+> not *which product matches this sentence*, but *which product a real person actually bought*.
+> Two columns nobody had used answered it. What I would rather be judged on is what happened next.
+> The score kept rising as I pushed that weight higher, which is exactly what over-fitting looks
+> like, so we wrote down a stopping rule and left measurable points on the table. Then I built the
+> harness that measures the one risk the public set cannot show us, and finally proved our own
+> ceiling — seven of our eight imperfect sessions are provably unwinnable. Along the way my
+> teammates caught a chart whose bars overlapped and a decision threshold with a hole in the
+> middle. Both corrections are in the log, next to the results.
+
+TODO(A): one line still missing — @Chen Zhilong.
 
 ---
 
-*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (27 logged
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (33 logged
 experiments, including the ones we rejected), [`team/成本与延迟披露.md`](team/成本与延迟披露.md),
 and the four module handover documents under `team/`.*
