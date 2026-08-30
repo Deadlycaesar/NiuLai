@@ -228,7 +228,14 @@ where judges look for evidence of real collaboration.
 > differently" into a closed question, and it is why this report gives what we disproved the same
 > weight as what we kept.
 
-TODO(A/B/C): three lines still missing — @Chen Zhilong, @Zhou Junkai, @Lin Xiaoxiao.
+> **Zhou Junkai (B):** My dense route never made it into the default path, and that is fine — its
+> real job turned out to be diagnostic, not additive. It proved Recall@pool was already 1.000, so
+> nothing downstream could gain from more candidates; and under paraphrase stress it showed where
+> robustness actually lives: +0.011 to +0.020 at L1-L3, nothing at L4, because L4 breaks in the
+> parser, not the index. We ship it off, one environment variable away, with the numbers on the
+> table instead of hidden.
+
+TODO(A/C): two lines still missing — @Chen Zhilong, @Lin Xiaoxiao.
 
 ---
 
