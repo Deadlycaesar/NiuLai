@@ -199,7 +199,8 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 | 字幕 | **英文**，直接用各幕的 `EN` 原文；一行 ≤ 42 字符，按句断行 |
 | 终端 | 字体调大、窗口拉宽（top-10 一行较长）；深色主题 |
 | 必跑命令 | 幕 1/2 的两条 `trace_session.py`；其余用图，别在镜头前等 loading |
-| 需要做的图 | 幕 3 ✅ [`assets/prior-axis.svg`](assets/prior-axis.svg)　幕 4① 分数账本图（待做） |
+| 需要做的图 | 幕 3 ✅ [`assets/prior-axis.svg`](assets/prior-axis.svg)（已渲染验收）　幕 4① 分数账本图（待做） |
+| **图的验收方法** | **必须整张渲染出来看，不能只看代码。** 首版就因为没看全，`6,846` 与 `570×`、`89.0%` 与 `4.3×` 两处数字重叠、底部结论超出画布右边被截断——从源码上完全看不出来。命令：`qlmanage -t -s 2400 -o <目录> <svg>` |
 | 数字核对 | 录制前跑一次 `python3 -m evaluator.local_evaluator` 确认仍是 **0.9694** |
 | 时长 | 见下方「时长与删减日志」。**官方对视频时长无任何规定**——`competition_specification` 关于视频只有一句 "One demonstrated multi-turn session"。3 分钟是我们自己定的目标 |
 | 平台 | YouTube 公开（分工计划 §5） |
