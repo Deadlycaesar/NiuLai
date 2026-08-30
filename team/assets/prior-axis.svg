@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
+  <!--
+    Demo video · Act 3 visual · 1920x1080 (native recording resolution, no scaling needed)
+    ENGLISH ONLY — judge-facing asset. Team docs stay in Chinese; submission material does not.
+
+    Number provenance (must match src/ranking/ranker.py):
+      price presence counts a product only when float() parses the field
+      (20.8%, not the looser non-empty test which gives 21.1%).
+    Verify with:  python3 scripts/ceiling_diagnostic.py   /   see team/experiments.md #10a
+    Data: data/public_set.jsonl (200 targets) + data/catalog.jsonl (50,000 products)
+
+    @BestBucky review note (adopted): speak only "570x" and "4.3x" aloud in this act.
+    Everything else must be carried by this image — 11 spoken numbers in 50s is overload.
+  -->
+  <defs>
+    <linearGradient id="tgt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2BC48A"/><stop offset="100%" stop-color="#4EE0A8"/>
+    </linearGradient>
+    <linearGradient id="cat" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3A4A55"/><stop offset="100%" stop-color="#4A5C69"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#0E1512"/>
+
+  <!-- Title -->
+  <text x="120" y="150" fill="#E7EEEA" font-size="62" font-weight="700">Target products vs. the whole catalogue</text>
+  <text x="120" y="212" fill="#8D9C96" font-size="34">200 hidden targets  ·  50,000-product catalogue</text>
+  <line x1="120" y1="258" x2="1800" y2="258" stroke="#2C3833" stroke-width="2"/>
+
+  <!-- Metric 1: review count -->
+  <text x="120" y="360" fill="#E7EEEA" font-size="42" font-weight="600">Review count (median)</text>
+
+  <text x="120" y="440" fill="#8D9C96" font-size="30">Targets</text>
+  <rect x="330" y="408" width="1110" height="52" rx="6" fill="url(#tgt)"/>
+  <text x="1470" y="448" fill="#4EE0A8" font-size="46" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">6,846</text>
+
+  <text x="120" y="518" fill="#8D9C96" font-size="30">Catalogue</text>
+  <!-- True ratio would be 1.9px wide; drawn at 8px to stay visible. Noted below. -->
+  <rect x="330" y="486" width="8" height="52" rx="4" fill="url(#cat)"/>
+  <text x="370" y="526" fill="#8D9C96" font-size="46" font-weight="600"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">12</text>
+
+  <text x="1570" y="490" fill="#E7EEEA" font-size="86" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">570×</text>
+
+  <!-- Metric 2: has a price field -->
+  <text x="120" y="680" fill="#E7EEEA" font-size="42" font-weight="600">Has a price field</text>
+
+  <text x="120" y="760" fill="#8D9C96" font-size="30">Targets</text>
+  <rect x="330" y="728" width="1110" height="52" rx="6" fill="url(#tgt)"/>
+  <text x="1470" y="768" fill="#4EE0A8" font-size="46" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">89.0%</text>
+
+  <text x="120" y="838" fill="#8D9C96" font-size="30">Catalogue</text>
+  <rect x="330" y="806" width="259" height="52" rx="6" fill="url(#cat)"/>
+  <text x="621" y="846" fill="#8D9C96" font-size="46" font-weight="600"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">20.8%</text>
+
+  <text x="1570" y="810" fill="#E7EEEA" font-size="86" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">4.3×</text>
+
+  <!-- Takeaway -->
+  <line x1="120" y1="920" x2="1800" y2="920" stroke="#2C3833" stroke-width="2"/>
+  <text x="120" y="985" fill="#E7EEEA" font-size="38">
+    Targets come from <tspan fill="#4EE0A8" font-weight="700">real purchase records</tspan>. People buy popular items — and only items that sold have price data.
+  </text>
+  <text x="120" y="1035" fill="#8D9C96" font-size="30">
+    Two signals that were sitting in the data, unused.<tspan fill="#66756F" font-size="26" dx="40">Top bars not to scale — magnitude only.</tspan>
+  </text>
+</svg>
