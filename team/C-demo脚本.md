@@ -171,6 +171,11 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 > We proved our own ceiling.
 > No dependencies. No network. No API cost. Two hundred sessions in ten seconds."
 
+> 🔒 **这句话锁定在 `USE_DENSE=0`（T-004 维持取 0）。** @周峻恺 在 T-015 抓到的联动：
+> 若将来 T-004 重开、dense 进提交，这句必须改成限定版，例如
+> *"Runs fully offline; an optional dense path degrades gracefully when its assets are absent."*
+> 改配置的人请连这句一起改——它是全片唯一一处会因配置变化而**说错话**的地方。
+
 中文对照：快讲三件事。我们测了 LLM 精排，**结果是变差**，这个结论留在了实验记录里。
 官方说过用户话术可能被改写，公开集测不出来，所以我们自己写了压力测试去量它。
 还剩 8 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
