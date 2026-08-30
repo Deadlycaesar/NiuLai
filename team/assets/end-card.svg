@@ -1,6 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
   <!-- Demo video · end card · 1920x1080. ENGLISH ONLY.
-       TODO(A): confirm the repo URL is public before submission. -->
+       TODO(A): confirm the repo URL is public before submission.
+
+       ⚠️ "66 logged experiments" = 实际表格行数（`grep -c '^| [0-9]' team/experiments.md`）。
+       **不要写最大编号**——中途撞号重编过（C 的 21→24 / 22→25 / 23→26），
+       最大编号 36 ≠ 条目数 66。改动实验表后请重数。 -->
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0%" stop-color="#2BC48A"/><stop offset="100%" stop-color="#4EE0A8"/>
   </linearGradient></defs>
@@ -12,11 +16,11 @@
 
   <line x1="150" y1="404" x2="1770" y2="404" stroke="#2C3833" stroke-width="2"/>
 
-  <text x="150" y="486" fill="#8D9C96" font-size="30">36 logged experiments, with the rejected ones kept</text>
+  <text x="150" y="486" fill="#8D9C96" font-size="30">66 logged experiments, including every one we rejected</text>
   <text x="150" y="546" fill="#E7EEEA" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">team/experiments.md</text>
 
   <text x="150" y="640" fill="#8D9C96" font-size="30">Latency, tokens, cost — measured, not estimated</text>
-  <text x="150" y="700" fill="#E7EEEA" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">team/成本与延迟披露.md</text>
+  <text x="150" y="700" fill="#E7EEEA" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">COST_AND_LATENCY.md</text>
 
   <text x="150" y="794" fill="#8D9C96" font-size="30">One command reproduces the score</text>
   <text x="150" y="854" fill="#4EE0A8" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">python3 -m evaluator.local_evaluator</text>
