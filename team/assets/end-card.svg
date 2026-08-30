@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
+  <!-- Demo video · end card · 1920x1080. ENGLISH ONLY.
+       TODO(A): confirm the repo URL is public before submission. -->
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#2BC48A"/><stop offset="100%" stop-color="#4EE0A8"/>
+  </linearGradient></defs>
+  <rect x="0" y="0" width="1920" height="1080" fill="#0E1512"/>
+  <rect x="0" y="0" width="14" height="1080" fill="url(#g)"/>
+
+  <text x="150" y="270" fill="#E7EEEA" font-size="72" font-weight="700">Everything is in the repo</text>
+  <text x="150" y="342" fill="#8D9C96" font-size="34">Including the experiments that failed.</text>
+
+  <line x1="150" y1="404" x2="1770" y2="404" stroke="#2C3833" stroke-width="2"/>
+
+  <text x="150" y="486" fill="#8D9C96" font-size="30">36 logged experiments, with the rejected ones kept</text>
+  <text x="150" y="546" fill="#E7EEEA" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">team/experiments.md</text>
+
+  <text x="150" y="640" fill="#8D9C96" font-size="30">Latency, tokens, cost — measured, not estimated</text>
+  <text x="150" y="700" fill="#E7EEEA" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">team/成本与延迟披露.md</text>
+
+  <text x="150" y="794" fill="#8D9C96" font-size="30">One command reproduces the score</text>
+  <text x="150" y="854" fill="#4EE0A8" font-size="36" font-family="'IBM Plex Mono',ui-monospace,monospace">python3 -m evaluator.local_evaluator</text>
+
+  <line x1="150" y1="932" x2="1770" y2="932" stroke="#2C3833" stroke-width="2"/>
+  <text x="150" y="1000" fill="#E7EEEA" font-size="38" font-weight="600">Team NiuLai</text>
+  <text x="1770" y="1000" fill="#8D9C96" font-size="34" text-anchor="end"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">github.com/Deadlycaesar/NiuLai</text>
+</svg>

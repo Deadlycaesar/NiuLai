@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
+  <!-- Demo video · title card · 1920x1080. ENGLISH ONLY (judge-facing).
+       Numbers must match `python3 -m evaluator.local_evaluator`. -->
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#2BC48A"/><stop offset="100%" stop-color="#4EE0A8"/>
+  </linearGradient></defs>
+  <rect x="0" y="0" width="1920" height="1080" fill="#0E1512"/>
+  <rect x="0" y="0" width="14" height="1080" fill="url(#g)"/>
+
+  <text x="150" y="330" fill="#8D9C96" font-size="34" letter-spacing="6">TIKTOK TECHJAM 2026 · TRACK 4</text>
+  <text x="150" y="452" fill="#E7EEEA" font-size="104" font-weight="700">NiuLai</text>
+  <text x="150" y="536" fill="#E7EEEA" font-size="46">A conversational shopping agent</text>
+
+  <line x1="150" y1="606" x2="1770" y2="606" stroke="#2C3833" stroke-width="2"/>
+
+  <text x="150" y="686" fill="#4EE0A8" font-size="42" font-weight="600">We didn't try to understand language better.</text>
+  <text x="150" y="744" fill="#4EE0A8" font-size="42" font-weight="600">We found that language wasn't the bottleneck.</text>
+
+  <text x="150" y="880" fill="#8D9C96" font-size="30">TechnicalScore</text>
+  <text x="150" y="960" fill="#E7EEEA" font-size="86" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">0.9694</text>
+  <text x="560" y="880" fill="#8D9C96" font-size="30">HitRate@10</text>
+  <text x="560" y="960" fill="#4EE0A8" font-size="86" font-weight="700"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">1.000</text>
+  <text x="990" y="880" fill="#8D9C96" font-size="30">Official baseline</text>
+  <text x="990" y="960" fill="#66756F" font-size="86" font-weight="600"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">0.107</text>
+</svg>
