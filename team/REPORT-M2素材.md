@@ -2,7 +2,9 @@
 
 > 给报告主笔（@陈智龙 Fable 落笔 / @BestBucky 审）的**可直接粘贴**英文素材。
 > 所有数字都在 `team/experiments.md` / `team/M2-通宵实验报告.md` 有原始记录，引用编号随附。
-> 按 T-004 两种结局各备了一版措辞——**拍板前请用"维持取 0"版**。
+> **08-30 晚更新：T-004 已终裁取 0（素材 C 两版作废，§8 已由 D 直接落笔）；§9 B 的自述已填进 REPORT。**
+> 本文件剩余有效部分 = 素材 A / B / D。压力档数字已在实验 33 后**重跑刷新**（dense on/off 两臂，
+> 增益逐位不变，绝对值见素材 D）；REPORT §4 表格与「0.8330 → 0.9327」句请按素材 D 的新值刷新。
 
 ## 素材 A：§2 M2 段落的扩充（两种结局通用，3 句）
 
@@ -28,26 +30,14 @@
 > | Δ score | **+0.011** | **+0.020** | **+0.016** | +0.000 |
 >
 > L4 is flat for a structural reason: that level breaks the *parser*, so no constraint ever
-> reaches retrieval — the fix there is Layer 3 (LLM extraction), not embeddings.
+> reaches retrieval — the fix there is Layer 3 (LLM extraction), not embeddings. With Layer 3
+> enabled, L4 recovers from 0.8486 to 0.9551 — level with L1.
 
-（这就是 T-020 里 @陈智龙 点名要的实验，阈值是"0.005 量级就值得重开 T-004"——实测是 2-4 倍。）
+（这就是 T-020 里 @陈智龙 点名要的实验，阈值是"0.005 量级就值得重开 T-004"——实测是 2-4 倍。
+实验 33 后两臂重跑：增益逐位不变，L4 规则臂 0.8361→0.8486、L4+LLM 0.9327→0.9551 追平 L1——
+"L4 的答案在 parser 第三层"从推断变成了实测。）
 
-## 素材 C：§8 Limitations 的诚实句（按 T-004 结局二选一）
-
-**若维持取 0（当前状态）：**
-
-> The dense route ships disabled. Its public-set gain (+0.0016) is below our noise floor, and its
-> memory cost (787 MB peak with the ONNX backend) buys robustness against a failure mode the
-> public set cannot exhibit. We judged the trade not worth a new runtime dependency in the
-> submitted default; both backends remain one environment flag away.
-
-**若重开取 1 + onnx：**
-
-> The dense route is enabled via an ONNX Runtime backend (32 MB quantised bge-small-en-v1.5),
-> chosen over PyTorch specifically to keep peak memory at 787 MB instead of 1,191 MB — the
-> submission rules reserve memory limits without naming them, so we engineered for the
-> conservative case. Its value is not the public-set score (+0.0016) but the paraphrase-stress
-> gains (+0.011 to +0.020, §4).
+## 素材 C：~~§8 Limitations 的诚实句~~（作废——T-004 已终裁取 0，§8 限制 3 已由 @BestBucky 直接落笔，含完整 OOM 期望值论证；无需再从本节取材）
 
 ## 素材 D：数字速查（全部复核过，可直接引用）
 
@@ -58,8 +48,10 @@
 | dense-on 公开集 0.9694 → 0.9710（+0.0016，5↑0↓ 全是 MTTC 提前） | 实验 #28 |
 | 断网全链路逐位一致（0.9694 / 0.9710） | 实验 #29 |
 | RSS：纯 BM25 530MB / torch 1191MB / onnx 787MB | T-014 楼内 + 实验报告 O10 |
-| 压力档 dense 增益 +0.011 / +0.020 / +0.016 / +0.000（L1-L4） | T-020 回帖 |
 | onnx 向量 parity：余弦 1.0000（fp32）/ 0.982（int8），分数逐位一致 | O10 |
+| **压力档（实验 33 后重跑，08-30 晚，两臂同跑）**：dense-off L0 0.9694 / L1 **0.9551** / L2 0.9218 / L3 0.8896 / L4 **0.8486**；dense-on L0 0.9710 / L1 **0.9664** / L2 0.9414 / L3 0.9058 / L4 0.8488 | 本次重跑（输出存留言板 T-022 回帖） |
+| **dense 增益 L1-L4 = +0.0113 / +0.0196 / +0.0162 / +0.0002**（与实验 33 前逐位一致） | 同上 |
+| **L4 + LLM 第三层 = 0.9551，追平 L1**（规则臂 0.8486）——REPORT 旧句 "0.8330 → 0.9327" 应刷新为 "0.8486 → 0.9551" | 实验 33（A） |
 | 资产：npz 72MB（SHA256 e1268017…cbf06be）/ onnx int8 32MB | M2 交接文档 v2 |
 
 ## 引用口径提醒（别写歪的三处）
