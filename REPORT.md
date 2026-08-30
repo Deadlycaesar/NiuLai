@@ -102,7 +102,7 @@ Measured across stress levels (L0 = unmodified public set):
 |---|---|---|---|---|---|
 | Layer 1 only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
 | **+ Layer 2** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
-| + Layer 3 (`LLM_PARSE=1`) | 0.9694 | 0.9551 | 0.9218 | 0.8896 | **0.9551** |
+| + Layer 3 (`LLM_PARSE=1`) | 0.9694 | **0.9694** | **0.9547** | **0.9640** | **0.9551** |
 
 Layer 2 is constructed so it can only fire when strict templates miss — it is byte-for-byte inert on
 the public set. Layer 3 additionally validates that anything the model returns is a contiguous
@@ -134,12 +134,20 @@ treated as success, and Layer 3 fires. The fix moved L1 verbatim recall from 76.
 partial recall from 77.0% to 97.8%, and lifted the hardest stress level from 0.9327 to **0.9551** —
 parity with L1 — while leaving the public set byte-identical, session by session.
 
+It also had an effect we did not anticipate. Before the fix, Layer 2 reported success on paraphrased
+levels L1–L3 even when the fragments it returned were damaged, so Layer 3 never ran there and the
+LLM's contribution was invisible outside L4. With the catalogue verifier deciding what counts as
+success, the model now engages wherever the rules genuinely failed, and the whole stress curve moves:
+L1 +0.014, L2 +0.033, L3 +0.074. The lesson generalises beyond this system — **a cascade whose early
+stages cannot recognise their own failure will silently starve the stages behind them**, and that
+deficit is invisible to end-to-end score.
+
 ## 5. Model choice: we tested the LLM in both positions and only one worked
 
 | LLM used for | Measured | Verdict |
 |---|---|---|
 | **Ranking** (listwise rerank of top-20) | titles only: **−0.020**; with hit evidence: **−0.0004** (3-run mean 0.9511 ±0.0005) | Ceiling is *parity*, not improvement |
-| **Understanding** (parsing paraphrased utterances) | L4 stress **0.8486 → 0.9551** | Genuinely irreplaceable |
+| **Understanding** (parsing paraphrased utterances) | stress levels **+0.014 to +0.074**; hardest level 0.8486 → **0.9551** | Genuinely irreplaceable |
 
 The first negative result was initially read as "the LLM is bad at this". A controlled experiment
 showed otherwise: it was information starvation. Once the model sees the same verbatim-hit evidence

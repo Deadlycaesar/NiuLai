@@ -105,11 +105,13 @@ not in verbatim matching. That turned the fix from "understand meaning" into "ex
 |---|---|---|---|---|---|
 | Strict templates only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
 | **+ rule salvage** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
-| + LLM extraction (`LLM_PARSE=1`) | 0.9694 | 0.9551 | 0.9218 | 0.8896 | **0.9551** |
+| + LLM extraction (`LLM_PARSE=1`) | 0.9694 | **0.9694** | **0.9547** | **0.9640** | **0.9551** |
 
 Three layers, each firing only when the previous one fails: strict templates → rule-based salvage →
 optional verbatim-verified LLM extraction. Layers 2 and 3 are constructed so they cannot fire on the
-public set; the L0 column is unchanged by their presence, session by session.
+public set; the L0 column is unchanged by their presence, session by session. With every layer
+enabled the stress curve is nearly flat — the paraphrase exposure that cost 0.183 at the outset is
+largely closed.
 
 **Measuring the parser on its own.** End-to-end score mixes parsing, retrieval and ranking, so we
 also score the parser in isolation against ground-truth constraint strings
@@ -141,8 +143,8 @@ scored **−0.020**; given the same verbatim-hit evidence the rule scorer sees, 
 **−0.0004** (three-run mean 0.9511 ±0.0005). So the original negative result was information
 starvation, not model weakness — but the ceiling is *parity*, because the rule scorer has already
 extracted everything that evidence contains. Enabling it costs ~106× the wall-clock latency and makes
-scores irreproducible. **The LLM earns its place in understanding, not in ranking** (L4 above:
-0.8486 → 0.9551).
+scores irreproducible. **The LLM earns its place in understanding, not in ranking** (stress levels above:
++0.014 to +0.074, with the hardest level rising 0.8486 → 0.9551).
 
 **Why dense retrieval is off.** It is worth +0.0016 on the public set and +0.011–0.020 under
 paraphrase stress, and costs 1191 MB peak RSS against 530 MB for the default path (+661 MB is the
