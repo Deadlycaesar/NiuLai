@@ -1,5 +1,7 @@
 <!--
-给 @BestBucky（D，本文件主笔）的说明 —— 定稿前删掉这段注释：
+给统稿人的说明 —— 定稿前删掉这段注释：
+0. ⚠️ 主笔归属已变更（留言板 T-014 ①）：**@陈智龙 落笔、@BestBucky 审阅**。
+   下面第 2 条「D 的 AI 助手不可用」的前提已不成立，D 的 §8/§9 部分已自行补完。
 
 1. 语言：写成英文，因为这是给评委看的（官方文档、Devpost 都是英文）。
    团队内部文档保持中文不变。
@@ -189,8 +191,19 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
 2. **The `other`-only question policy is specific to this simulator.** It is provably optimal against
    the published `classify_constraint()`, and we disclose that openly; the general entropy policy
    remains available behind a flag.
-3. **The dense route contributes nothing unless enabled at submission time**, and shipping it requires
-   distributing a 72 MB embedding file. TODO(D): state the final decision here.
+3. **The dense route ships disabled (`USE_DENSE=0`) — the one place we knowingly left measurable
+   value on the table.** It is not dead code: it lifts Recall@pool to 1.000, and under paraphrase
+   stress it adds +0.011 to +0.020 at levels L1-L3 — five to ten times our own 0.002 noise
+   threshold, and far more than the +0.0016 it is worth on the unmodified public set. We ship it
+   off anyway, for two reasons worth stating rather than rounding off. Its benefit is conditional
+   on a scenario nobody has confirmed: those paraphrase levels come from a mechanical rewriter we
+   wrote ourselves, useful for isolating which layer breaks first, not evidence about the private
+   set. Its cost is not a lower score but a harder failure mode: peak RSS rises from 530 MB to
+   1191 MB on the torch backend, or 787 MB on ONNX, against a memory ceiling the organizer
+   reserves the right to impose and never states. Missing assets degrade gracefully to pure BM25;
+   an OOM kill does not degrade at all. Thirty hours from the deadline we were not willing to
+   trade an unbounded downside for a conditional gain — but it is one environment variable away
+   if those limits turn out to be generous.
 4. **Latency was measured on one machine** (Apple M5). Absolute numbers will differ; the ~106× ratio
    between offline and LLM paths should not.
 
@@ -204,8 +217,18 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
 | Bi Yongqi (D) | M4 memory | Context distillation, profile lexicon, cross-turn signals, and the permutation test that closed the profile-signal question definitively |
 | — (E) | M5 evaluation | Absent for the event; responsibilities redistributed across the team |
 
-TODO(D): each person add one sentence in their own words — judges read this section as evidence of
-real collaboration, and a table alone reads as boilerplate.
+**In their own words** — one line each; the table alone reads as boilerplate, and this section is
+where judges look for evidence of real collaboration.
+
+> **Bi Yongqi (D):** Mine is the module that never moved the score, and the most useful thing I
+> produced was the proof of why it could not. After two wiring attempts failed I stopped testing
+> implementations and tested the premise instead: shuffling profiles across the same target items
+> showed the apparent 1.745x lift was an artefact of target items simply carrying more text, and
+> that the true profile-to-target association is 1.021x (p 0.18). That turned "maybe tune it
+> differently" into a closed question, and it is why this report gives what we disproved the same
+> weight as what we kept.
+
+TODO(A/B/C): three lines still missing — @Chen Zhilong, @Zhou Junkai, @Lin Xiaoxiao.
 
 ---
 
