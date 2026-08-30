@@ -227,6 +227,18 @@ class Retriever:
             candidates = self._fuse_dense(state, candidates, slot_terms)
         return candidates
 
+    # ---- 目录逐字校验（供 M1 解析器注入使用，实验 33）：归一化短语是否逐字存在于
+    # 任一商品文本。依据第一性原理"约束是商品文本的逐字片段"——解析器抽出的片段
+    # 若全目录查无此文，多半是粘了口水话的垃圾，应放行第三层防线而非入槽。
+    def phrase_exists(self, norm_phrase: str) -> bool:
+        tokens = norm_phrase.split()
+        if not tokens:
+            return False
+        query = '"' + " ".join(tokens) + '"'
+        cursor = self.connection.execute(
+            "SELECT 1 FROM products WHERE products MATCH ? LIMIT 1", (query,))
+        return cursor.fetchone() is not None
+
     # ---- 逐约束短语召回（实验 22）：OR-token 大池会把"全样板约束+超冷门"目标挤出
     # top-300（public_0020 唯一 miss 的死因）；≥3 token 槽位值的 FTS5 短语查询子池
     # 极小、目标必进池。追加候选 bm25_rank 给哨兵值（CANDIDATE_POOL），排序侧记 0。

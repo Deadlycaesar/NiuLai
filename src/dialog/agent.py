@@ -19,6 +19,8 @@ class ShoppingAgent:
     def __init__(self, catalog_path: str = "data/catalog.jsonl") -> None:
         self.retriever = Retriever(catalog_path)
         self.sessions: dict[str, DialogState] = {}
+        # 解析器的目录逐字校验器（实验 33）：抽出的片段须在某件商品文本里逐字存在
+        parser.set_catalog_verifier(self.retriever.phrase_exists)
 
     def reset(self, session_id: str, user_profile: dict) -> None:
         # ⚠️ 评测器只保护 respond()；reset() 抛异常 = 整场评测直接崩（不是记 miss）。

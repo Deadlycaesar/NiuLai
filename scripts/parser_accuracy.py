@@ -93,6 +93,8 @@ def main() -> None:
 
     cases = build_cases(args.catalog, args.n)
     from src import config
+    from src.retrieval.retriever import Retriever
+    parser.set_catalog_verifier(Retriever(args.catalog).phrase_exists)  # 与真实管线一致
     mode = "规则+LLM 三层" if config.LLM_PARSE else "规则-only"
     print(f"解析器内在准确率 · {len(cases)} 条消息 · {mode}\n")
     print("%-4s %14s %14s %12s" % ("档位", "recall_exact", "recall_partial", "garbage/msg"))

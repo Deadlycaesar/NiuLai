@@ -186,14 +186,40 @@ _JUNK_WORDS = {
 }
 
 
-def _payload_after_colon(text: str) -> str | None:
-    """取最后一个冒号之后的内容。评测器的三种带载荷句式都是 'lead-in: payload' 形态，
-    改写后 lead-in 变了但冒号通常还在，所以这是命中率最高的一条抽取规则。"""
-    index = text.rfind(":")
-    if index == -1:
-        return None
-    payload = text[index + 1:].strip().strip("\"'")
-    return payload or None
+def _candidate_payloads(text: str) -> list[str]:
+    """冒号载荷的候选集：首冒号后 + 末冒号后（去重）。
+
+    评测器句式是 'lead-in: payload'，但约束值自身可能带冒号（'Department: womens' 这类
+    "Key: value" 形态约占 1/8）——只取末冒号会把值劈碎（badcase 实录见实验 33），
+    只取首冒号又赌不起 lead-in 里出现冒号。两个都要，让目录校验选赢家。"""
+    payloads: list[str] = []
+    for index in dict.fromkeys((text.find(":"), text.rfind(":"))):
+        if index != -1:
+            payload = text[index + 1:].strip().strip("\"'")
+            if payload:
+                payloads.append(payload)
+    return payloads
+
+
+_catalog_check = None  # Callable[[str], bool] | None，由 agent 注入（retriever.phrase_exists）
+
+
+def set_catalog_verifier(check) -> None:
+    """注入"归一化短语是否逐字存在于任一商品文本"的校验器（M2 的 FTS 短语查询）。
+
+    第一性原理：约束是商品文本的逐字片段。规则抽出的片段若全目录查无此文，
+    多半粘了口水话——不算抽取成功，应放行第三层防线。未注入时一律视为通过（安全降级）。"""
+    global _catalog_check
+    _catalog_check = check
+
+
+def _in_catalog(fragment: str) -> bool:
+    if _catalog_check is None:
+        return True
+    try:
+        return bool(_catalog_check(normalize(fragment)))
+    except Exception:
+        return True  # 校验器故障不得改变解析行为
 
 
 def _is_useful(fragment: str) -> bool:
@@ -208,14 +234,21 @@ def _is_useful(fragment: str) -> bool:
     return any(w not in _JUNK_WORDS for w in words)
 
 
-def _add_fragments(state: DialogState, payload: str, turn: int, hard: bool) -> int:
-    added = 0
+def _collect_fragments(payload: str) -> list[str]:
+    out: list[str] = []
     for fragment in _PAYLOAD_SPLIT.split(payload):
         fragment = fragment.strip().strip(" .,;:!?\"'—–")
         if _is_useful(fragment):
-            before = len(state.slots)
-            _add_constraint(state, fragment, turn, hard=hard)
-            added += len(state.slots) - before
+            out.append(fragment)
+    return out
+
+
+def _add_fragments(state: DialogState, payload: str, turn: int, hard: bool) -> int:
+    added = 0
+    for fragment in _collect_fragments(payload):
+        before = len(state.slots)
+        _add_constraint(state, fragment, turn, hard=hard)
+        added += len(state.slots) - before
     return added
 
 
@@ -248,14 +281,29 @@ def _salvage(state: DialogState, message: str, turn: int) -> None:
             if _is_useful(candidate):
                 state.category = candidate
 
-    # ③ 约束片段——优先取冒号载荷，取不到则退回整句切分
-    payload = _payload_after_colon(message)
-    if payload and _add_fragments(state, payload, turn, hard=False):
+    # ③ 约束片段——冒号载荷出双候选（首/末冒号），目录逐字校验选赢家（实验 33）。
+    # "抽出来的片段全目录查无此文" = 大概率粘了口水话的垃圾，不算成功。
+    best_frags: list[str] = []
+    best_verified = -1
+    for payload in _candidate_payloads(message):
+        frags = _collect_fragments(payload)
+        verified = sum(1 for f in frags if _in_catalog(f))
+        if verified > best_verified or (verified == best_verified and len(frags) > len(best_frags)):
+            best_frags, best_verified = frags, verified
+    if best_verified > 0:
+        for fragment in best_frags:
+            _add_constraint(state, fragment, turn, hard=False)
         return
     # ③.5 第三层防线：LLM 逐字片段抽取（LLM_PARSE 开关，默认关）。
-    # 只在冒号载荷这条高命中规则也落空、即将退回"整句切分"最弱路径时才触发——
-    # 实验 16a 定位"脆的是片段抽取不是语义"，LLM 在这里干的就是边界检测。
+    # 触发条件：冒号载荷抽不出任何"目录里逐字存在"的片段——包括值内冒号劈碎、
+    # 口水话粘连这两类 badcase（实验 33 实录）。实验 16a 定位"脆的是片段抽取
+    # 不是语义"，LLM 在这里干的就是边界检测。
     if _llm_extract(state, message, turn):
+        return
+    # LLM 未启用/失败：冒号片段仍保底入槽（信息只多不少），再不济整句切分
+    if best_frags:
+        for fragment in best_frags:
+            _add_constraint(state, fragment, turn, hard=False)
         return
     _add_fragments(state, message, turn, hard=False)
 

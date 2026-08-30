@@ -101,6 +101,37 @@ class LLMParseTest(unittest.TestCase):
         parser.update_state(state, _MSG, 1)
         self.assertEqual(calls, [])
 
+    def test_colon_in_value_picks_first_colon(self) -> None:
+        """值内冒号 badcase（实验 33）：'Department: womens; color: pink' 这类约束
+        不能被"末冒号"规则劈碎——目录校验应让首冒号候选胜出。"""
+        known = {"department womens", "color pink"}
+        parser.set_catalog_verifier(lambda phrase: phrase in known)
+        self.addCleanup(parser.set_catalog_verifier, None)
+        state = DialogState(session_id="t", profile={})
+        parser.update_state(
+            state, "On that front, here's what counts for me: Department: womens; color: pink", 1)
+        self.assertEqual([s.value for s in state.slots], ["Department: womens", "color: pink"])
+
+    def test_garbage_colon_extraction_falls_through_to_llm(self) -> None:
+        """粘连口水话的冒号提取全目录查无此文 → 不算成功，第三层必须能出场。"""
+        state, calls = self._arm({
+            "category": None, "override": False, "constraints": ["100% Acrylic"],
+        })
+        parser.set_catalog_verifier(lambda phrase: phrase == "100 acrylic")
+        self.addCleanup(parser.set_catalog_verifier, None)
+        parser.update_state(
+            state, "On that front I'd say 100% Acrylic is the thing: honestly whatever works", 1)
+        self.assertTrue(calls, "零验证通过时应放行 LLM")
+        self.assertEqual([s.value for s in state.slots], ["100% Acrylic"])
+
+    def test_llm_failure_keeps_colon_fragments(self) -> None:
+        """LLM 失败时冒号片段保底入槽——信息只多不少。"""
+        state, _ = self._arm(lambda user: None)
+        parser.set_catalog_verifier(lambda phrase: False)
+        self.addCleanup(parser.set_catalog_verifier, None)
+        parser.update_state(state, "Anyway the key thing: Warm wool blend", 1)
+        self.assertEqual([s.value for s in state.slots], ["Warm wool blend"])
+
     def test_strict_template_never_reaches_llm(self) -> None:
         """严格模板命中时 LLM 层零触发——公开集零影响的构造保证。"""
         state, calls = self._arm({"category": None, "override": False, "constraints": []})
