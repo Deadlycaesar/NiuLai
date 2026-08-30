@@ -249,6 +249,56 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 
 幕 3 占全片 27% 的时长——**这是刻意的**，它是唯一的 Innovation 落点。
 
+---
+
+## 开录前：一键预检（实跑验证过，2026-08-30）
+
+```bash
+cd "/Users/lyx/Project/TikTok TechJam/NiuLai"
+python3 -m evaluator.local_evaluator | grep technical_score   # 必须是 0.9694
+python3 scripts/check_guards.py                                # 必须全绿
+```
+
+## 幕 1 的命令要截断，否则刷屏
+
+基线跑满 10 轮 = **152 行输出**，录进去是一面墙。用这条只放到第 2 轮结束（**39 行，一屏刚好**）：
+
+```bash
+AGENT_IMPL=baseline python3 scripts/trace_session.py --id public_0007 | sed -n '1,/第 3 轮/p' | sed '$d'
+```
+
+画面上会看到 badcase 的完整弧线：第 1 轮返回的还像样（都是女式上衣），
+第 2 轮拿"你问我一个具体属性吧"这句抱怨当搜索词后，top-10 直接崩成
+**自行车裤 / 万圣节袜子 / 束腰马甲 / 鼻环** —— 讲解词里点名的那几样都在。
+
+## 幕 2 的命令不用截断
+
+```bash
+python3 scripts/trace_session.py --id public_0007
+```
+
+我们的版本只有 **22 行**，两轮命中，天然适合上镜。
+
+## 录制顺序建议
+
+| 步 | 内容 | 时长 |
+|---|---|---|
+| 1 | 幕 1 终端（上面那条截断命令） | 0:23 |
+| 2 | 幕 2 终端 | 0:30 |
+| 3 | 幕 3 图 [`assets/prior-axis.svg`](assets/prior-axis.svg) 全屏 | 0:53 |
+| 4 | 幕 4① 图 [`assets/withholding-ledger.svg`](assets/withholding-ledger.svg) 全屏 | 0:30 |
+| 5 | 幕 4② 无画面需求，可停在上图或放 experiments.md 截图 | 0:27 |
+| 6 | 幕 5 无画面需求，可回到终端跑一次全量（10 秒出分，收尾很有力） | 0:36 |
+
+**幕 5 的画面建议**：现场跑 `python3 -m evaluator.local_evaluator`，
+10 秒出分这件事本身就是"零依赖、零网络"最好的证据——比念出来有说服力。
+
+## 录完之后
+
+1. 传 YouTube 设为**公开**（分工计划 §5）
+2. 把链接给 @陈智龙 填 README 的 `TODO(A)` 和 Devpost
+3. 顺手在留言板回一句，让大家知道最后一块交付物到位了
+
 ## 预答问（评委可能追问，英文作答）
 
 - **"Always asking `other` — isn't that gaming the simulator?"**
