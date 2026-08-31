@@ -244,10 +244,13 @@ Three rules, adopted after the first over-fitting scare and applied to every cha
 score up to weight 6 — monotone improvement with no plateau is an over-fitting alarm, not a win. At
 weight 2.0 easy/medium/hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0 and
 left 0.008 on the table. Removing early-turn withholding moved that optimum: with all ten
-recommendations now scored, the same rule selects **2.75 paired with `HAS_PRICE_WEIGHT=0.95`**
-(easy +0.0088 / medium +0.0051 / hard ±0, no bucket regressing). Pairing 2.75 with 1.0 is eliminated
-because a single session out of 200 pushes the medium bucket 0.0004 below baseline — the rule is
-applied to its own boundary case rather than around it.
+recommendations now scored, our re-scan landed on **`POP_WEIGHT=2.75` with
+`HAS_PRICE_WEIGHT=0.95`** — and scanning the neighbourhood afterwards showed the peak is one grid
+point wide: 0.9466 against 0.9457 at 2.8, a margin of +0.0009, which is exactly what the next
+paragraph calls noise, and an advantage that does not survive paraphrase stress. We therefore report
+2.75 as where our grid landed rather than as a value the stopping rule selected, and note that
+anything in 2.5–3.0 is the same system (the range spans 0.0035). `HAS_PRICE_WEIGHT=0.95` is a
+different case and we do claim it: it beats 1.0 by 0.0025, above the threshold.
 
 **Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
 0.0007–0.0025. A tuning result of +0.0009 is one session flipping — indistinguishable from noise. We
