@@ -120,11 +120,11 @@ profile 注入在所有档位均为负收益，且损失随改写强度单调放
 
 **其一，profile 注入要求画像与目标之间存在真实的条件依赖。** 本赛题的 `user_profile` 为合成数据且与目标独立，这一点已被证明。真实电商场景中，购买历史与下次购买之间存在真实依赖——协同过滤之所以成立正源于此。可执行的准入判据是：**先跑置换检验，仅当真实配对显著优于随机配对时才动工**。该检验约二十行代码、数分钟即可完成，成本远低于接线后跑全量 A/B，且能一次性排除整类接法。
 
-**其二，蒸馏要求上下文确实超出预算。** 本赛题会话上限 10 轮、实测平均 2.155 轮收敛，且下游排序器消费的是结构化的 `Slot` 对象而非文本，压缩这一步没有真实需求。当会话长度足以使原始历史超出 prompt 预算，或当消费方是以文本为输入的模型时，蒸馏层即从「架构完整性」转为「承重结构」。本模块的输出长度已验证有界（0.80×），可直接迁移。
+**其二，蒸馏要求上下文确实超出预算。** 本赛题会话上限 10 轮、实测平均 1.935 轮收敛，且下游排序器消费的是结构化的 `Slot` 对象而非文本，压缩这一步没有真实需求。当会话长度足以使原始历史超出 prompt 预算，或当消费方是以文本为输入的模型时，蒸馏层即从「架构完整性」转为「承重结构」。本模块的输出长度已验证有界（0.80×），可直接迁移。
 
 **其三，Reflection 要求存在真实的负反馈信号。** 本模拟器只有「命中终局」与「回答属性问题」两类事件，不存在「用户拒绝了这一件」。真实系统具备点击、跳过、停留时长等真负样本，届时「被拒集合的共同属性降权」这一原始设计才有可学之物。
 
-**其四，弱信号要求「存在可救的失败」与「输出形态可容错」两个条件同时成立。** 当前基线 HitRate 已为 1.000，不存在可救的 miss；且收窄策略令早轮输出只有一个名额，弱信号一旦出错即无处藏身。当系统仍有实质失败率、且每轮返回较大的 top-k 时，同一个弱信号可以搭便车，而不必承担独占首位的风险。停滞信号同理：其触发需要至少三轮，而在平均 2.155 轮收敛的会话分布下几乎没有机会激活；在浏览型、长会话的部署中该信号将频繁生效。
+**其四，弱信号要求「存在可救的失败」与「输出形态可容错」两个条件同时成立。** 这两条在提交定稿时发生了一次分离，值得如实记录：定稿撤销了早轮收窄（`EARLY_TOPK` 1→0），**输出形态那一条现在成立了**——每轮返回满 10 件，弱信号可以搭便车，不必独占首位；这正是本节所描述的可容错形态。但另一条仍不成立：当前基线 HitRate 为 1.000，没有可救的 miss。因此约束从「两条都不满足」收敛为**单一约束——基线已饱和**。换言之，本模块此刻缺的不是合适的输出形态，而是可供改善的失败。停滞信号同理：其触发需要至少三轮，而在平均 **1.935** 轮收敛的会话分布下几乎没有机会激活；在浏览型、长会话的部署中该信号将频繁生效。
 
 ## 7. 方法论结论
 
@@ -245,11 +245,11 @@ Each failure above has a precondition. Inverting those preconditions yields the 
 
 **First, profile injection requires a genuine conditional dependence between profile and target.** In this benchmark the `user_profile` is synthetic and provably independent of the target. In a deployed commerce setting, purchase history and the next purchase *are* dependent — that dependence is exactly why collaborative filtering works. The executable entry criterion is: **run the permutation test first, and build the feature only if true pairings beat shuffled ones by a significant margin.** The test is roughly twenty lines and a few minutes, far cheaper than wiring the feature and running a full A/B, and it rules out an entire class of wirings at once.
 
-**Second, distillation requires that the context genuinely exceeds its budget.** Here sessions are capped at ten turns, converge in 2.155 on average, and the downstream ranker consumes structured `Slot` objects rather than text, so there is no compression pressure to relieve. Once sessions are long enough for raw history to exceed a prompt budget, or once the consumer is a text-input model, the distillation layer changes from architectural completeness into load-bearing structure. Its output is already verified bounded (0.80×) and transfers directly.
+**Second, distillation requires that the context genuinely exceeds its budget.** Here sessions are capped at ten turns, converge in 1.935 on average, and the downstream ranker consumes structured `Slot` objects rather than text, so there is no compression pressure to relieve. Once sessions are long enough for raw history to exceed a prompt budget, or once the consumer is a text-input model, the distillation layer changes from architectural completeness into load-bearing structure. Its output is already verified bounded (0.80×) and transfers directly.
 
 **Third, reflection requires a genuine negative signal.** This simulator emits only two events — conversion, and an answer to an attribute question. It never rejects a shown product. Real systems have clicks, skips and dwell time, which are true negatives; only then does the original design — down-weighting attributes shared by a rejected slate — have anything to learn from.
 
-**Fourth, a weak signal requires both a remaining failure rate and a fault-tolerant output shape.** The current baseline is at HitRate 1.000, so there is no miss left to rescue; and the withholding strategy leaves exactly one slot in early turns, so a weak signal that errs has nowhere to hide. Where a system still fails materially and returns a reasonably large top-k each turn, the same weak signal can ride along without having to carry the top position alone. The stagnation signal is subject to the same logic: it needs at least three turns to trigger, and at a mean of 2.155 turns to conversion it almost never gets the chance — whereas in a browsing-heavy deployment with longer sessions it would fire routinely.
+**Fourth, a weak signal requires both a remaining failure rate and a fault-tolerant output shape.** These two came apart at submission, which is worth recording accurately. The shipped default withdrew early-turn withholding (`EARLY_TOPK` 1 → 0), so **the output-shape condition now holds**: every turn returns a full ten slots, and a weak signal can ride along without having to carry the top position alone — exactly the fault-tolerant shape described here. The other condition still does not hold: at HitRate 1.000 there is no miss left to rescue. The constraint therefore collapses from two unmet conditions to **one — a saturated baseline**. What this module lacks is not a suitable output shape but a remaining failure to improve on. The stagnation signal follows the same logic: it needs at least three turns to trigger, and at a mean of **1.935** turns to conversion it almost never gets the chance — whereas in a browsing-heavy deployment with longer sessions it would fire routinely.
 
 ## 7. Methodological conclusion
 

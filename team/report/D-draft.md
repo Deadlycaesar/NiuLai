@@ -1,86 +1,71 @@
 # D (@BestBucky) — Chapters 6 & 9
 
-> 任务卡：[`team/报告-分章大纲.md`](../报告-分章大纲.md) §5。**直接写英文**，写完交 @LIN XIAOXIAO 整合润色。
-> 动笔前扫 **附录 C 术语表**（英式拼写；permutation test / prior axis 等术语照表用）。
-> 数字只从 **附录 A 口径快照表** 取。合计 1000 词。**03:00 前交**。
->
-> **两章都是纯新增，也都是你自己的第一手工作。** 记忆单独成章的理由见大纲 §2 ——
-> 官方 Innovation Directions 第 5 条点名了 "safe personalization using the aggregate profile"，
-> 评委按单子看，缺席比负结果更糟。
+> 交稿版 09-01。英式拼写，术语按大纲附录 C，数字全部来自附录 A（新增两处已入库，见文末「给整合人的说明」）。
+> Ch6 455 词 / Ch9 正文 548 词 + 七行映射表（表是本章骨架，任务卡要求至少六行）。
 
 ---
 
-# Chapter 6 · Safe personalisation: a negative result on a direction the brief named (400 words)
+# Chapter 6 · Safe personalisation: a negative result on a direction the brief named
 
-## The question this chapter answers
+**The question this chapter answers:** the brief names "safe personalization using the aggregate profile" as an innovation direction. We built it. What did it turn out to be worth, and how do we know?
 
-## 1. What we built
-<!-- preference_tags (closed set of 9) → soft-preference lexicon; cross-turn signals (stagnation / rejection);
-     context distillation; two wiring attempts.
-     可写可不写的好数字：第 10 轮 prompt 长度 = 第 3 轮的 0.80×（不增反减，状态是收敛的） -->
+**What we built.** The evaluator hands us a five-key `user_profile` at `reset()`, before the customer has said anything — the only signal available for a cold start. We parsed it into a soft-preference lexicon (`preference_tags` is a closed set of nine values, verified across all 200 public sessions) and added two cross-turn signals: a stagnation counter and a record of previously shown candidates. A context distiller compresses session state into one bounded line per turn, its turn-10 output **0.80×** its turn-3 length (exp 22) — the state converges rather than accumulating.
 
-## 2. The first number looked like signal: 1.745× lift
+**The first number looked like signal.** Profile keywords occur in the target listing 1.745× more often than in a random listing (exp 22).
 
-## 3. The confound
-<!-- 目标商品都是热门商品（第 5 章那个 570×）→ 文案更长更丰富 → 任何词都更容易命中，与"匹配"无关 -->
+**It was a confound.** Target products come from real purchase records, so they are systematically the popular ones — the same skew that makes the prior axis work in Chapter 5, where targets carry 570× the median review count. Popular products have longer listings, so *any* word hits them more often. The lift was measuring listing length, not relevance.
 
-## 4. The permutation test
-<!-- 同一批目标，只打乱 profile 配对 → 1.021×, z = +0.93, p ≈ 0.18 (200 permutations)；效应量 2% -->
+**The permutation test.** Holding the targets fixed and shuffling only which profile pairs with which session — identical items, identical listing lengths, only the pairing destroyed — the ratio falls to **1.021×** (z = +0.93, p ≈ 0.18, 200 permutations, exp 22): a 2% effect we cannot distinguish from zero.
 
-## 5. State the conclusion as information, not implementation  ← 本章的落点
-<!-- "The ceiling is not set by how we wire it, weight it or gate it — it is set by information content,
-     and the data does not carry it."
-     这一句关掉了整类工作（冷启动限定 / 只接检索 / 只接排序 / 扫权重 / 按 tag 分档）——
-     请把"省下的时间比它可能提的分多得多"这层意思写出来 -->
+**Stated as information rather than implementation:** the ceiling on this feature is not set by how we wire it, weight it or gate it — it is set by information content, and this data does not carry it. That retired an entire class of follow-up work in one measurement — cold-start-only application, retrieval-only, ranking-only, weight sweeps, per-tag gating — each of which would otherwise have cost a wiring and a full evaluation to falsify alone. The time saved exceeds anything the feature could plausibly have scored.
 
-## 6. Two same-batch negatives
-<!-- rating_style → 目标 avg_rating 4.41 / 4.28 / 4.31 无区分度；
-     preference_tags → 目标品类的表面偏离全是小计数噪声（112 个品类分 200 样本） -->
+Two same-batch negatives agree: `rating_style` does not predict the target's average rating (4.41 / 4.28 / 4.31, exp 22), and the apparent tag-to-category skews are small-count noise across 112 categories over 200 sessions.
 
-## 7. Where the code went
-<!-- lexicon.py / signals.py 保留在仓库、15 个单测、不接生产路径；
-     actionable_rejections 接入实测零效果 (exp 18)：HitRate 已 0.995、MTTC 2.23，
-     绝大多数会话在攒到停滞信号之前就结束了 -->
+**Where the code went.** `lexicon.py` and `signals.py` remain in the repository under 12 unit tests, deliberately disconnected from the scoring path. The one signal we did offer the ranker, `actionable_rejections`, measured as exactly zero when wired in (exp 18): with HitRate at 0.995 and MTTC at 2.23, almost every session ended before a stagnation signal could accumulate.
 
-## 8. One sentence handing off to Chapter 9
-<!-- 什么条件下它会成立：需要购买序列 / 浏览行为，而不是聚合标签 -->
-
-## Net effect
+**Net effect: 0.0000 on TechnicalScore, by decision rather than by omission.** What generalises is the entry criterion, and it needs data this benchmark does not have — purchase sequences and browsing behaviour rather than an aggregate tag set. Chapter 9 takes that up.
 
 ---
 
-# Chapter 9 · From benchmark to a real storefront (600 words)
+# Chapter 9 · From benchmark to a real storefront
 
-## The question this chapter answers
+**The question this chapter answers:** with the evaluator taken away, which parts of this system survive, which are scaffolding, and what would replace them?
 
-## 1. The benchmark-shaped mechanisms unload with one flag
-<!-- exp 30: MIRROR_BONUS=0 EARLY_TOPK=0 → 0.9694 → 0.9383, HitRate 1.000 in both configurations
-     ⚠️ 这两个数是旧档（藏牌开）口径，必须标明，别和 0.9466 混
-     论点不是"我们没作弊"，是"赛技可一键卸载，卸载后命中率不掉" -->
-
-## 2. Mechanism-by-mechanism mapping  ← 本章骨架，至少六行
+**The benchmark-shaped mechanisms unload with a flag — and one of them is already unloaded.** The shipped default runs with `EARLY_TOPK=0`: we withdrew early-turn withholding before submission, on a product judgement rather than a score one, paying −0.0286 entirely out of MRR while HitRate held at 1.000 across all five stress levels. That leaves the intent-card mirror bonus as the only mechanism in the shipped default with no real-world counterpart. Removing it costs **−0.0031** (0.946642 → 0.943581) with **HitRate unchanged at 1.000 and MTTC unchanged at 1.935** (exp 43). Measured earlier with withholding still enabled, the full unload was 0.9694 → 0.9383, again at HitRate 1.000 in both configurations (exp 30, benchmark-configuration figures — not comparable with the shipped default). The claim is not that we avoided benchmark-specific optimisation; it is that it detaches cleanly, and that coverage does not depend on it.
 
 | Mechanism | Why it holds in this benchmark | In a real storefront | Keep / replace |
 |---|---|---|---|
-| Verbatim substring match |  |  |  |
-| Intent-card mirror bonus |  |  |  |
-| Constant `other` question |  |  |  |
-| Stop-on-hit |  |  |  |
-| Hand-weighted linear scorer |  |  |  |
-| Aggregate profile |  |  |  |
+| Verbatim substring match | The customer's constraints are copied verbatim from the target's own listing | Real shoppers do not quote product copy | **Replace as primary.** Demote to one recall signal among several; the semantic route becomes the main path |
+| Intent-card mirror bonus | The intent card is an artefact of the evaluator | No counterpart exists | **Replace** with attribute salience — a match in the title, a structured field or the first bullet weighs more than one in the eighth paragraph of a description |
+| Constant `other` question | The simulator discloses up to two constraints per turn and `other` matches any of them | A real shopper asked "anything else?" every turn simply stops replying | **Replace** with expected information gain traded against a patience cost |
+| Stop-on-hit | Defined by the evaluation protocol | Add-to-basket or checkout | **Keep.** The objective has the same shape — early and accurate — so the ranking policy transfers unchanged |
+| Hand-weighted linear scorer | 200 labelled sessions; learning the weights would mean learning the public set | Real behavioural data at volume | **Replace** with LambdaMART or GBDT, with a cross-encoder on the low-confidence tail |
+| Aggregate profile | Carries **no information** about the target (Chapter 6) | Purchase sequences and browsing behaviour exist and are genuinely predictive | **Rebuild on different data.** Aggregate tags are the wrong object; sequences are the right one, and they bring a privacy boundary with them |
+| Buying / Browsing routing | The simulator collapses browsing into buying: one target, verbatim constraints, stop-on-hit | The two modes optimise different things — precision@1 versus information gain and diversity | **Add.** A continuous `intent_confidence` rather than a branch, diversity re-ranking (MMR/DPP), and expected-information-gain questioning |
 
-<!-- 第 6 行是你和第 6 章的接口：你有第一手证据说明"数据里没有这个信息"，
-     所以你最有资格说真实世界需要什么数据这套才成立 -->
+The last two rows are where our own evidence is strongest and weakest respectively. On the profile row we are not speculating: the permutation test says what is missing and therefore what would have to be present. On the routing row we should be explicit that we did not build a router — `state.scenario` is populated but never read by retrieval or ranking, so buying and browsing take one identical path. Both halves of a router already exist in the repository: the prior axis is a browsing ranker, and `ASK_POLICY=entropy` is a browsing questioner. The latter costs −0.0252 here (exp 35) precisely because there is no real browsing to serve.
 
-## 3. Engineering budget
-<!-- 50k SKU / SQLite FTS5 → 千万级要换 ANN；延迟预算（规则 2.3 ms vs LLM 解析 p95 1.0–5.6 s）
-     ⇒ 只在低置信轮调用的成本模型；冷启动 4.1–6.9 s；内存 530 MB / dense 1191 MB（onnx 787 MB） -->
+**Engineering budget.** 50k SKUs in SQLite FTS5 answer in 2.3 ms median per turn (p95 2.8 ms); at tens of millions this becomes an ANN index and the latency budget changes shape. The offline path holds a 530 MB resident set and starts in 4.1–6.9 s; enabling the dense route takes that to 1191 MB on torch, or 787 MB on an ONNX backend. LLM parsing runs at p95 1.0–5.6 s against 2.3 ms for rules — three orders of magnitude — which is the entire argument for invoking it only on low-confidence turns rather than every turn.
 
-## 4. Path to production and observability
-<!-- 影子流量 → A/B → learned ranker；把 parser_accuracy 这种分层指标搬到线上
-     （理由：端到端指标会吸收上游缺陷，我们这次已经吃过一次） -->
+**Path to production.** Shadow traffic first, then A/B, then a learned ranker once behavioural data accumulates. One observability lesson transfers directly: measure layers, not just the end. Our end-to-end score absorbed a parser defect for days until the parser was scored on its own, at which point two real bugs surfaced within an hour. Any deployment should carry the equivalent of `parser_accuracy` as a live metric.
 
-## 5. Risks and compliance
-<!-- 隐私边界；**推荐可解释性**（官方 Innovation Direction 第 7 条，现稿最弱的一环）；冷启动；长尾品类 -->
+**Risks and compliance.** Personalisation on purchase sequences crosses a privacy boundary that aggregate tags do not, and needs consent and retention policy attached rather than assumed. Explainability also becomes a requirement rather than a nicety: here the reason a product ranked first is mechanically recoverable — which constraints matched verbatim, and what the priors contributed — and that trace is exactly what a storefront should surface as "why you are seeing this". Cold start and long-tail categories remain open: the prior axis favours popular items by construction, which is correct for conversion and wrong for discovery.
 
-## Net effect
+**Net effect: the transferable core is the constraint-driven pipeline, the prior axis and the layered evaluation discipline; the scaffolding is worth −0.0031 to remove (exp 43) and takes no coverage with it.**
+
+---
+
+## 给整合人（@LIN XIAOXIAO）的说明
+
+1. **两处数字是我新测/新数的，已入库，可直接引用**：
+   - **实验 43**（新增）：当前档下卸载 mirror bonus = **−0.0031**（0.946642 → 0.943581），HitRate 1.000 与 MTTC 1.935 **逐位不变**。
+     大纲附录 A 里第 9 章原本给的是实验 30 的 0.9694 → 0.9383，那是**藏牌开**的旧档；而提交默认已经是 `EARLY_TOPK=0`，
+     用旧档数会让人以为我们还留着最大的那个赛技。两个数我都写了，并各自标了口径。**建议附录 A 补上实验 43 这行。**
+   - **单测数 12，不是 15**。大纲第 6 章任务卡写的「15 个单测覆盖」是当时**全套件**总数（含 evaluator 的 3 个）；
+     `test_lexicon.py` + `test_signals.py` 实际是 12 个。稿子里写的 12。
+2. **第 6 章的「净影响」我写成了 `0.0000，by decision rather than by omission`**——如果你觉得在一篇总分导向的报告里
+   直接写 0 太扎眼，可以改措辞，但**请保留"这是决定不是遗漏"这层**，那是这章唯一的立足点。
+3. **第 9 章路由那一段是照大纲 §6 的口径写的**（我们没有真 router，`state.scenario` 从未被读）。
+   我核过 `ranking/`、`retrieval/`、`policy.py`、`agent.py`，与 @陈智龙 的结论一致，没有读漏。
+4. 术语已按附录 C 统一（verbatim substring match / prior axis / stop-on-hit / stress level / the shipped default /
+   early-turn withholding / permutation test），英式拼写，Δ 用真减号 −。
