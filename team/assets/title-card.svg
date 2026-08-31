@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
   <!-- Demo video · title card · 1920x1080. ENGLISH ONLY (judge-facing).
-       Numbers must match `python3 -m evaluator.local_evaluator`. -->
+       Numbers must match `python3 -m evaluator.local_evaluator`.
+
+       ⚠️ 主张措辞（@BestBucky T-025 指出、C 采纳）：原稿 "language wasn't the bottleneck"
+       与 REPORT §5 直接矛盾——§5 说改写场景下 semantics is the only thing that can recover
+       the verbatim signal，实验 33 是 L4 规则 0.8486 → 加 LLM 0.9551（全项目单项最大鲁棒性收益）。
+       该主张只在**排序**维成立。现改为"没提升排序 / 它在别处起作用"，
+       并在幕 5 补了还账句——**钩子必须还账，否则比直接下结论更糟**。 -->
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0%" stop-color="#2BC48A"/><stop offset="100%" stop-color="#4EE0A8"/>
   </linearGradient></defs>
@@ -13,8 +19,8 @@
 
   <line x1="150" y1="606" x2="1770" y2="606" stroke="#2C3833" stroke-width="2"/>
 
-  <text x="150" y="686" fill="#4EE0A8" font-size="42" font-weight="600">We didn't try to understand language better.</text>
-  <text x="150" y="744" fill="#4EE0A8" font-size="42" font-weight="600">We found that language wasn't the bottleneck.</text>
+  <text x="150" y="686" fill="#4EE0A8" font-size="42" font-weight="600">Better language understanding didn't improve our ranking.</text>
+  <text x="150" y="744" fill="#4EE0A8" font-size="42" font-weight="600">It turned out to matter somewhere else entirely.</text>
 
   <text x="150" y="880" fill="#8D9C96" font-size="30">TechnicalScore</text>
   <text x="150" y="960" fill="#E7EEEA" font-size="86" font-weight="700"

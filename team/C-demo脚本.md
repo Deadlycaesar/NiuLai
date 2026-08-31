@@ -25,9 +25,14 @@
 
 ## 一句话主张（全片围绕这句）
 
-> **EN** — *We didn't try to understand language better. We found that language wasn't the bottleneck.*
+> **EN** — *Better language understanding didn't improve our ranking. It turned out to matter somewhere else entirely.*
 >
-> 中文对照：我们没在"更懂语义"上卷，而是发现这个任务的瓶颈根本不在语义。
+> 中文对照：更懂语言并没有改善我们的排序——它的作用完全在别的地方。
+>
+> ⚠️ **原稿是** *"We didn't try to understand language better. We found that language wasn't the bottleneck."*
+> @BestBucky 在 T-025 指出它与 REPORT §5 直接矛盾（§5：改写场景下语义是唯一能救回逐字信号的东西；
+> 实验 33 L4 规则 0.8486 → 加 LLM **0.9551**，是全项目单项最大的鲁棒性收益）。
+> 那句话只在**排序**这一维成立。现稿第一句准确、第二句埋钩子，**幕 5 已补还账句**。
 
 ---
 
@@ -166,6 +171,8 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 > We tested an LLM re-ranker. It made results **worse** — and we kept that finding in the log.
 > The organizers said the shopper's wording may be paraphrased.
 > The public set cannot show that, so we measured it ourselves.
+> **And that is where the language model earned its place** — not in ranking products,
+> but in understanding a shopper who words things differently.
 > And of the eight sessions we still do not rank first, **seven are provably impossible** —
 > identical intent cards, identical dialogue. One target has forty-six twins.
 > We proved our own ceiling.
@@ -178,6 +185,7 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 
 中文对照：快讲三件事。我们测了 LLM 精排，**结果是变差**，这个结论留在了实验记录里。
 官方说过用户话术可能被改写，公开集测不出来，所以我们自己写了压力测试去量它。
+**而语言模型的价值就在那里显现了**——不是给商品排序，是听懂一个换了说法的用户。
 还剩 8 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
 其中一条有 46 个孪生商品。**我们证明了自己的天花板。**
 零依赖、零网络、零 API 成本，200 条会话 10 秒跑完。
