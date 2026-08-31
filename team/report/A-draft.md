@@ -298,21 +298,13 @@ score up to weight 6 — monotone improvement with no plateau is an over-fitting
 weight 2.0 easy, medium and hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0
 and left 0.008 on the table.
 
-The rule then caught us. Removing early-turn withholding moved the optimum, we re-scanned, and the
-grid landed on `POP_WEIGHT=2.75`. Scanning its neighbourhood afterwards showed the peak is **one grid
-point wide** — 2.75 scores 0.9466 against 0.9457 at 2.8 and 0.9453 at 2.7, a margin of **+0.0009**,
-which is precisely the quantity the next paragraph calls indistinguishable from noise. Under
-paraphrase stress the advantage does not survive at all: averaged over L1–L3, weight 3.0 edges 2.75
-by 0.0002. So we report 2.75 as **where our grid landed, not as a value our stopping rule selected**,
-and we state plainly that anything in 2.5–3.0 is the same system — the whole range spans 0.0035. The
-second prior is a different case and we do claim it: `HAS_PRICE_WEIGHT=0.95` beats 1.0 by **0.0025**,
-comfortably above the threshold, and that total-score difference is the reason we give rather than a
-per-bucket argument that would itself sit inside the noise band.
-
-We are documenting this against our own interest, on the configuration we are actually submitting
-rather than on a decision safely in the past. It was found by a teammate re-deriving a number in the
-outline he had been handed, and it is in the report because a rule you suspend when it is
-inconvenient is not a rule.
+The rule then caught us on the weights we are actually submitting. §5 gives the neighbourhood scan
+in full; the short version is that our re-swept optimum stands **+0.0009** above its neighbour, which
+is the quantity the next paragraph calls noise, and that we therefore report it as where our grid
+landed rather than as a value the rule selected. We are documenting that against our own interest, on
+the live configuration rather than on a decision safely in the past. It was found by a teammate
+re-deriving a number he had been handed, and it is in this report because **a rule you suspend when
+it is inconvenient is not a rule.**
 
 **Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
 0.0007–0.0025. A tuning result of +0.0009 is one session flipping, and is indistinguishable from
@@ -338,17 +330,14 @@ rather than a single parameter:
 | Cross-turn rejection filtering | Zero effect — sessions end before the stagnation signal can accumulate | §6, `experiments.md` #18 |
 | Early-turn withholding | Worth +0.0244 on the shipped code and genuinely effective, but it is the opposite of what a storefront should do | §5, §11 |
 
-**We then proved our own ceiling — and re-proved it after changing the default.** In the shipped
-configuration 38 of 200 sessions are not ranked first. A session-by-session comparison against the
-withholding configuration separates them cleanly: **7** are imperfectly ranked under both and are
-*information-theoretically indistinguishable* — the target shares an identical intent card and coarse
-category with other catalogue items, so the dialogue the simulator generates is byte-identical (one
-target has **46** such twins, which makes ranking it first a one-in-47 draw). The other **31** are
-precisely the sessions withholding used to rescue: the same 31 identified in §1, and the measured
-price of showing ten products instead of one. Against the withholding configuration the reachable MRR
-gain beyond those 7 was **0.00075** — below our own noise threshold. We closed the tuning phase there
-on 30 August, two days before the deadline, and spent the remainder on robustness and deliverables.
-Continuing would have bought noise and paid for it in private-set generalisation.
+**We stopped tuning because we proved there was nothing left to win.** §5 carries the ceiling
+analysis: of the 38 sessions not ranked first, 7 are information-theoretically indistinguishable from
+their twins and the other 31 are the measured price of a mechanism we chose to remove, leaving a
+reachable MRR gain of **0.00075** — below our own noise threshold. We closed the tuning phase on that
+result on 30 August, two days before the deadline, and spent the remainder on robustness and
+deliverables. The discipline worth reporting is not the ceiling itself but what it licensed us to
+stop doing: further tuning there would have bought noise and paid for it in private-set
+generalisation.
 
 ---
 
