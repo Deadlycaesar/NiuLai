@@ -296,12 +296,23 @@ Three rules, adopted after our first over-fitting scare and applied to every cha
 **Stop where all three difficulty buckets improve together.** The popularity prior kept raising the
 score up to weight 6 — monotone improvement with no plateau is an over-fitting alarm, not a win. At
 weight 2.0 easy, medium and hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0
-and left 0.008 on the table. Removing early-turn withholding moved that optimum: with all ten
-recommendations now scored, the same rule selects **`POP_WEIGHT=2.75` paired with
-`HAS_PRICE_WEIGHT=0.95`** (easy +0.0088 / medium +0.0051 / hard ±0, no bucket regressing). Pairing
-2.75 with 1.0 is eliminated because a *single session out of 200* pushes the medium bucket 0.0004
-below baseline. The rule is applied to its own boundary case rather than around it — that is the
-whole point of writing it down in advance.
+and left 0.008 on the table.
+
+The rule then caught us. Removing early-turn withholding moved the optimum, we re-scanned, and the
+grid landed on `POP_WEIGHT=2.75`. Scanning its neighbourhood afterwards showed the peak is **one grid
+point wide** — 2.75 scores 0.9466 against 0.9457 at 2.8 and 0.9453 at 2.7, a margin of **+0.0009**,
+which is precisely the quantity the next paragraph calls indistinguishable from noise. Under
+paraphrase stress the advantage does not survive at all: averaged over L1–L3, weight 3.0 edges 2.75
+by 0.0002. So we report 2.75 as **where our grid landed, not as a value our stopping rule selected**,
+and we state plainly that anything in 2.5–3.0 is the same system — the whole range spans 0.0035. The
+second prior is a different case and we do claim it: `HAS_PRICE_WEIGHT=0.95` beats 1.0 by **0.0025**,
+comfortably above the threshold, and that total-score difference is the reason we give rather than a
+per-bucket argument that would itself sit inside the noise band.
+
+We are documenting this against our own interest, on the configuration we are actually submitting
+rather than on a decision safely in the past. It was found by a teammate re-deriving a number in the
+outline he had been handed, and it is in the report because a rule you suspend when it is
+inconvenient is not a rule.
 
 **Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
 0.0007–0.0025. A tuning result of +0.0009 is one session flipping, and is indistinguishable from
