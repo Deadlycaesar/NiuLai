@@ -94,10 +94,16 @@ def _compose(state: DialogState, ask_attribute: str | None, top: list[dict]) -> 
 
     # ── 开场：还没有任何约束，只知道粗品类。坦白说明这是"起点"而非"答案"。
     # 只在第 1 轮说"Let's start"——boundary 场景第 2 轮仍然无槽位，再说一次开场白就露馅了。
+    # 09-01：本分支此前只有 "the closest single match" 一种措辞，是 EARLY_TOPK=1（早轮只推 1 件）
+    # 时代的产物；撤销藏牌后第 1 轮实际列出 10 件，文案与画面自相矛盾（demo 幕 2 可见）。
+    # 按本函数其余分支既有的 count==1 / count 双写法补齐。文案不影响任何分数——
+    # 评测器对 message 只做类型检查（local_evaluator.py:243，见 REPORT §1 第一条发现）。
     if not state.slots and len(state.history) <= 1:
         opener = f"Let's start with {category}." if category else "Let's start narrowing this down."
-        if lead_title:
+        if count == 1 and lead_title:
             opener += f" The closest single match I have right now is {lead_title}."
+        elif lead_title:
+            opener += f" Here are the {count} closest I have so far, starting with {lead_title}."
         return f"{opener} To do better I need a bit more — is there {ask}?"
 
     # ── 问了但用户没给（boundary 首问被挡 / 该属性问干）：承认没拿到，换个角度再问。
