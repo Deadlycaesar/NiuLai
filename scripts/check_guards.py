@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import io
 import hashlib
 import re
 import subprocess
@@ -240,6 +241,26 @@ def check_tests_collected() -> None:
         )
     else:
         ok("测试用例全部可被收集", f"定义 {defined} / 收集 {collected}")
+
+    # 收集到 ≠ 跑得过。2026-09-01：LLM_PARSE_TIMEOUT 上线后给 chat_json 加了 timeout=
+    # 关键字，但 tests/test_llm_parse.py 的替身没跟着改签名，7 个用例全部 TypeError。
+    # 本护栏当时报「全部通过」——因为它只数了收集数。而那 7 个用例覆盖的正是
+    # 同一天刚改成默认开的解析第三层。收集数护栏挡住了"没被跑到"，挡不住"跑了但全错"。
+    runner = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0)
+    result = runner.run(unittest.defaultTestLoader.discover(
+        str(tests_dir), top_level_dir=str(ROOT)))
+    broken = len(result.errors) + len(result.failures)
+    if broken:
+        names = ", ".join(t.id().rsplit(".", 2)[-1]
+                          for t, _ in (result.errors + result.failures)[:5])
+        fail(
+            "单元测试未全部通过",
+            f"{result.testsRun} 个用例中 {len(result.errors)} 个报错 / {len(result.failures)} 个失败：{names}",
+            "跑 `python3 -m unittest discover -s tests` 看完整回溯；"
+            "报错（ERROR）多半是被测代码改了签名而替身没跟着改，不是断言不成立",
+        )
+    else:
+        ok("单元测试全部通过", f"{result.testsRun} 个用例")
 
 
 # ---------- 留言板：把待回复的帖子推到人眼前 ----------

@@ -25,7 +25,10 @@ class LLMParseTest(unittest.TestCase):
         """开 LLM_PARSE、mock chat_json、清熔断计数（addCleanup 自动还原）。"""
         calls: list[str] = []
 
-        def fake_chat_json(system, user, max_tokens=200):
+        def fake_chat_json(system, user, max_tokens=200, timeout=None):
+            # timeout= 是解析层专用超时（config.LLM_PARSE_TIMEOUT）传进来的；
+            # 替身必须跟着真签名走，否则 7 个用例全部 TypeError 而不是失败——
+            # 报错和"测过了"在 CI 摘要里长得不一样，但在"没人看摘要"时一样危险。
             calls.append(user)
             return reply(user) if callable(reply) else reply
 
