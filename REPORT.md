@@ -92,7 +92,7 @@ The result is a three-layer defence, each layer firing only when the previous on
 
 | Layer | Mechanism | Cost |
 |---|---|---|
-| 1. Strict templates | Exact evaluator句式 | free |
+| 1. Strict templates | Exact evaluator templates | free |
 | 2. Rule salvage | Colon payload, separators, override cues, category extraction | free |
 | 3. LLM extraction | Verbatim-verified fragment extraction; paraphrased output rejected | optional, default off |
 
