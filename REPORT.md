@@ -70,8 +70,9 @@ Both follow from the targets being drawn from real purchase records. `has_price`
 for popularity: within the low-popularity subset the catalogue is 20.2% vs. targets 86.3%.
 
 Adding these two priors solved **86% of the 44 tied sessions** and took the score 0.861 → 0.935.
-Combined with deliberately withholding recommendations on low-confidence turns (§1's third finding —
-show one candidate on turns 1–2 instead of ten), rank-1 sessions went from 106 to 189 of 200.
+A fourth mechanism — withholding all but one recommendation on low-confidence turns, following §1's
+third finding — then took the score to 0.962 and rank-1 sessions from 106 to 189 of 200. We have
+since removed that mechanism from the shipped default; §9 gives the reason and the exact price.
 
 ## 4. Robustness: the risk we could not measure, so we built a way to measure it
 
@@ -92,7 +93,7 @@ The result is a three-layer defence, each layer firing only when the previous on
 
 | Layer | Mechanism | Cost |
 |---|---|---|
-| 1. Strict templates | Exact evaluator句式 | free |
+| 1. Strict templates | Exact evaluator sentence templates | free |
 | 2. Rule salvage | Colon payload, separators, override cues, category extraction | free |
 | 3. LLM extraction | Verbatim-verified fragment extraction; paraphrased output rejected | **default on**; zero calls at L0 |
 
@@ -157,7 +158,7 @@ deficit is invisible to end-to-end score.
 | LLM used for | Measured | Verdict |
 |---|---|---|
 | **Ranking** (listwise rerank of top-20) | titles only: **−0.020**; with hit evidence: **−0.0004** (3-run mean 0.9511 ±0.0005) | Ceiling is *parity*, not improvement |
-| **Understanding** (parsing paraphrased utterances) | stress levels **+0.014 to +0.074**; hardest level 0.8486 → **0.9551** | Genuinely irreplaceable |
+| **Understanding** (parsing paraphrased utterances) | stress levels **+0.012 to +0.090**; hardest level 0.8269 → **0.9168** | Genuinely irreplaceable |
 
 The first negative result was initially read as "the LLM is bad at this". A controlled experiment
 showed otherwise: it was information starvation. Once the model sees the same verbatim-hit evidence
@@ -198,8 +199,10 @@ a property of a benchmark whose simulated customer quotes product copy verbatim,
 semantic retrieval. A shopper asking for something "flattering" gives no string to extract, and
 nothing but semantics can move toward them.
 
-**So the LLM is used to listen, not to rank.** Both LLM paths default to off; the offline path is the
-only default path. Model: GLM-4.7-Flash (free tier), swappable via `LLM_BASE_URL` / `LLM_MODEL`.
+**So the LLM is used to listen, not to rank.** The ranking path stays off by default (`USE_LLM=0`).
+The parsing path ships on (`LLM_PARSE=1`) and makes zero calls on unmodified phrasing, so the
+headline number is produced without it. Model: `deepseek-v4-flash`, swappable via `LLM_BASE_URL` /
+`LLM_MODEL`; any OpenAI-compatible endpoint works, and none at all is also a valid configuration.
 Full latency/token/cost numbers: [`team/成本与延迟披露.md`](team/成本与延迟披露.md).
 
 ## 6. The question policy: we bounded the dimension instead of arguing about it
@@ -240,7 +243,11 @@ Three rules, adopted after the first over-fitting scare and applied to every cha
 **Stop where all three difficulty buckets improve together.** The popularity prior kept raising the
 score up to weight 6 — monotone improvement with no plateau is an over-fitting alarm, not a win. At
 weight 2.0 easy/medium/hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0 and
-left 0.008 on the table.
+left 0.008 on the table. Removing early-turn withholding moved that optimum: with all ten
+recommendations now scored, the same rule selects **2.75 paired with `HAS_PRICE_WEIGHT=0.95`**
+(easy +0.0088 / medium +0.0051 / hard ±0, no bucket regressing). Pairing 2.75 with 1.0 is eliminated
+because a single session out of 200 pushes the medium bucket 0.0004 below baseline — the rule is
+applied to its own boundary case rather than around it.
 
 **Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
 0.0007–0.0025. A tuning result of +0.0009 is one session flipping — indistinguishable from noise. We
@@ -255,12 +262,15 @@ We also disproved things and kept the records: profile-based soft preferences (p
 1.021×, p≈0.18 — the apparent 1.745× lift was a text-length artefact), dense similarity as a
 tie-breaker, feature-count priors, and prior-weight decay.
 
-**We then proved our own ceiling.** `scripts/ceiling_diagnostic.py` decomposes the remaining 0.0228
-to theoretical maximum: 7 of the 8 imperfectly-ranked sessions are *information-theoretically
-indistinguishable* — the target shares an identical intent card and category with other catalogue
-items, so the generated dialogue is byte-identical (one target has 46 such twins). The reachable MRR
-gain is 0.00075, below our own noise threshold. Further tuning would buy noise and pay for it in
-private-set generalisation.
+**We then proved our own ceiling — and re-proved it after changing the default.** In the shipped
+configuration 38 of 200 sessions are not ranked first. A session-by-session comparison against the
+withholding configuration separates them cleanly: **7** are imperfectly ranked under both and are
+*information-theoretically indistinguishable* — the target shares an identical intent card and
+category with other catalogue items, so the generated dialogue is byte-identical (one target has 46
+such twins). The other **31** are precisely the sessions withholding used to rescue: the same 31
+identified in §1, and the measured price of showing ten products instead of one. Against the
+withholding configuration the reachable MRR gain beyond those 7 was 0.00075, below our own noise
+threshold; further tuning there would buy noise and pay for it in private-set generalisation.
 
 ## 8. Reproduction
 
@@ -279,8 +289,11 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
 ## 9. Limitations
 
 1. **Public-set saturation is not private-set safety.** HitRate is 1.000 on 200 public sessions; the
-   private 800 use different users and targets. Our best proxy is the paraphrase stress table in §4 —
-   we expect 0.84–0.95 if paraphrasing is applied, and we have no way to narrow that range.
+   private 800 use different users and targets. Our best proxy is the paraphrase stress table in §4:
+   with the shipped configuration the curve runs 0.9466 → 0.9168 across five rewrite levels, so we
+   expect roughly **0.92–0.95** if paraphrasing is applied *and* the parsing layer has network
+   access. Without that access the same curve floors at 0.827. We have no way to narrow this
+   further — the levels are our own mechanical rewriter, not evidence about the private split.
 2. **The `other`-only question policy is specific to this simulator.** §6 bounds it rather than
    defending it: the whole ask dimension is worth +0.00385 to an oracle holding the hidden card,
    every generalisable named-attribute policy we measured is negative, and the entropy alternative
@@ -331,9 +344,10 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
    the rule layers fail, which is where it is worth +0.036 / +0.060 / +0.098 at L2 / L3 / L4 and
    restores HitRate to 1.000 at L3. Without network access or credentials it degrades to the
    rule-only path after two consecutive failures, so in a network-restricted scoring environment the
-   headline number is unchanged. The observed worst case is a single call reaching the 45 s timeout
-   and succeeding on retry — the one place where a stricter organiser timeout could turn a slow call
-   into a miss.
+   headline number is unchanged. During measurement the worst observed case was a single call
+   reaching the then-45 s timeout and succeeding on retry; the parsing layer has since been given its
+   own shorter budget (`LLM_PARSE_TIMEOUT=12`, against a measured p95 of 1.0–5.6 s), capping its
+   worst case at two attempts of 12 s rather than two of 45 s.
 
 ## 10. Team contributions
 
@@ -370,7 +384,7 @@ where judges look for evidence of real collaboration.
 > The score kept rising as I pushed that weight higher, which is exactly what over-fitting looks
 > like, so we wrote down a stopping rule and left measurable points on the table. Then I built the
 > harness that measures the one risk the public set cannot show us, and finally proved our own
-> ceiling — seven of our eight imperfect sessions are provably unwinnable. Along the way my
+> ceiling — seven of our imperfectly ranked sessions are provably unwinnable. Along the way my
 > teammates caught a chart whose bars overlapped and a decision threshold with a hole in the
 > middle. Both corrections are in the log, next to the results.
 
@@ -387,6 +401,6 @@ where judges look for evidence of real collaboration.
 
 ---
 
-*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (35 logged
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (42 logged
 experiments, including the ones we rejected), [`team/成本与延迟披露.md`](team/成本与延迟披露.md),
 and the four module handover documents under `team/`.*
