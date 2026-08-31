@@ -21,7 +21,7 @@ products tied with it?
 At 0.861 the system stalled. Forty-four sessions had the target inside the top ten but ranked fourth
 to tenth: every disclosed constraint matched, and the scorer had nothing left to break the tie with.
 Dense semantic similarity did not help — among the tied candidates the target's median similarity
-rank was 81 — because the semantic and the verbatim signal are driven by the same text (exp 10a).
+rank was 81 — because the semantic and the verbatim signal are driven by the same text (exp 7).
 
 So we stopped asking *which product best matches this sentence* and asked *which product a real
 person actually bought*. The targets are drawn from real purchase records, and purchases are not
@@ -64,14 +64,16 @@ anything in 2.5–3.0 is the same system to within 0.0035. The companion weight 
 
 ## 3. Removing early-turn withholding was a product decision, not a score decision
 
-Showing one product instead of ten on low-confidence turns was worth **+0.0286** (exp 37). A hit
-ends the session and locks in that turn's rank, so converting at turn one in seventh place is worth
-less than converting at turn two in first. Thirty-one sessions sat in exactly that trade.
+A hit ends the session and locks in that turn's rank, so converting at turn one in seventh place
+is worth less than converting at turn two in first. Thirty-one sessions sat in exactly that trade,
+and showing one product instead of ten on low-confidence turns is worth **+0.0244** against the
+weights we ship — `EARLY_TOPK=1` scores 0.9710 where the default scores 0.9466.
 
 Showing a shopper a single product is not a storefront, so we removed it from the default. The
-measured price: HitRate is unchanged at every one of the five paraphrase levels, MTTC improves from
-2.155 to 1.920, and the entire cost falls on MRR — on ranking precision the mechanism had been
-buying by declining to show candidates.
+measured price: HitRate is unchanged at every one of the five paraphrase levels, MTTC *improves*
+from 2.130 to 1.935, and the entire cost falls on MRR — on ranking precision the mechanism had been
+buying by declining to show candidates. One flag restores it, and we would rather state that than
+have it found.
 
 ## 4. We proved our own ceiling
 
@@ -116,6 +118,10 @@ quotations of catalogue text, so in ranking — where the text is already matche
 nothing left to add; in parsing under paraphrase the verbatim signal is exactly what has been
 destroyed, and semantics is the only thing that can recover it. **The model is used to listen, not
 to rank.**
+
+Concretely, that is the configuration we submit: **`USE_LLM=0`** — no model participates in ranking
+— and **`LLM_PARSE=1`**, the parsing layer, which on unmodified phrasing never fires at all. The
+re-ranker stays in the tree behind its flag, with the three measurements above beside it.
 
 ## 2. Cost, latency and token disclosure
 
@@ -167,7 +173,15 @@ Zero tokens, zero cost and zero network on the path that is actually scored; a m
 - [ ] 每个数字对得上附录 A 快照表；作废数字黑名单里的一个都没漏进来
 - [ ] 章序拼装 + 过渡句（第 4 章末尾接第 5 章、第 6 章末尾接第 9 章）
 - [ ] 字数：目标 5100，硬上限 5400；超了按大纲 §4 的砍单顺序砍
-- [ ] 现稿抬头 "reaches 0.9710 with one flag" **已删除**（大纲 §7①）
+- [x] ~~现稿抬头 "reaches 0.9710 with one flag" 已删除~~ → **作废，那句成立，别删**（T-029：
+      A 自撤回，实测当前先验下单开 `EARLY_TOPK=1` = 0.971025 / hit 1.000 / MRR 0.9788 / MTTC 2.13；
+      他原判据取自实验 28 的旧档。⚠️ 大纲附录 A 的作废数字表仍把 `0.9710` 列为黑名单，
+      整合时按"标明口径的对照档"处理，并请 @陈智龙 顺手改大纲那行）
+- [ ] **联网声明的两处是故意重复**（官方 Model Policy 要 clearly document，早晚各一次）：
+      A 第 2 章是**结论版方框**、C 第 7 章第 3 节是**机制版**。整合时确认两段用词不同、
+      不读起来像复制粘贴——第 2 章答"要不要联网"，第 7 章答"不联网时它凭什么不掉分"
+- [ ] **天花板段与 2.75 邻域扫描已归第 5 章**（T-029：A 把第 10 章压到 470 词，
+      只留"三桶齐涨"规则本身 + 一句 +0.0009 + 指向 §5）。整合时确认第 10 章没有回流重复
 - [ ] 第 0 章摘要下方有分场景四行表（大纲附录 A）
 - [ ] 第 12 章每人自述**不改调子**，只改明显语法错
 
