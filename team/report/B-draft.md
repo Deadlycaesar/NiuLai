@@ -28,7 +28,8 @@ alongside the main OR-token pool, and BM25 ranks are normalised within each sub-
 merging. The phrase sub-pool exists because of one instructive failure: `public_0020`, an
 ultra-cold target whose constraints were all boilerplate, could never climb into the top-300 of
 the token pool — its phrase query, against a pool of almost nothing, brought it back. That was
-the session that took HitRate to 1.000 for the first time (exp 22).
+the session that took HitRate to 1.000 for the first time (exp 22, the phrase-recall entry — the
+number is used twice in experiments.md).
 
 ## 3. The dense route: one mechanism, two counterfactuals
 
@@ -61,4 +62,4 @@ tight enough to kill the route's 787 MB ONNX peak (1,191 MB on PyTorch) would li
 
 Retrieval contributes a candidate pool that provably always contains the target, at zero marginal
 runtime risk; the dense route is kept, measured from both directions, and deliberately switched
-off (exp 6b, 22, 28, 29, 31, 37, 38).
+off (exp 6b, 22 [phrase recall], 28, 29, 31, 37, 38).
