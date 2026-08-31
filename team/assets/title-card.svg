@@ -24,7 +24,7 @@
 
   <text x="150" y="880" fill="#8D9C96" font-size="30">TechnicalScore</text>
   <text x="150" y="960" fill="#E7EEEA" font-size="86" font-weight="700"
-        font-family="'IBM Plex Mono',ui-monospace,monospace">0.9694</text>
+        font-family="'IBM Plex Mono',ui-monospace,monospace">0.9466</text>
   <text x="560" y="880" fill="#8D9C96" font-size="30">HitRate@10</text>
   <text x="560" y="960" fill="#4EE0A8" font-size="86" font-weight="700"
         font-family="'IBM Plex Mono',ui-monospace,monospace">1.000</text>
