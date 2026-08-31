@@ -138,13 +138,13 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 > "A hit ends the session — and locks in that turn's rank.
 > So converting at turn one in seventh place is **worse** than converting at turn two in first place.
 > Thirty-one sessions were stuck in exactly that trade. So we showed **one** product instead of ten
-> on the early turns. It was worth almost three points.
+> on the early turns. It was worth about two and a half points.
 > Then we **removed** it. Showing a shopper a single product is not a storefront.
 > And removing it cost us nothing in reach — the same hit rate at every paraphrase level,
 > and the agent actually got **faster**."
 
 中文对照：命中即终局，并锁死那一轮的名次。所以"第 1 轮第 7 名"比"第 2 轮第 1 名"更差。
-我们有 31 条会话正卡在这个亏损交易上，于是头几轮只推 **1 件**，值将近 3 分。
+我们有 31 条会话正卡在这个亏损交易上，于是头几轮只推 **1 件**，值约 2.5 分。
 **然后我们把它删了**——只给顾客看一件商品，那不叫商店。
 而且删掉没有损失任何"找得到"的能力：五个改写档命中率一档没掉，agent 反而更快了。
 
@@ -160,11 +160,11 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 > "One more. While tuning, we found the score kept rising as we pushed a weight higher.
 > A score that never stops rising is an **over-fitting alarm**, not a win.
 > So we set a rule: keep a change only if **all three difficulty buckets improve together**.
-> At weight two, all three improved. At weight three, easy went up and medium went down. We stopped."
+> At one weight, all three improved. One step further, easy rose while medium fell. We stopped."
 
 中文对照：调参时发现某个权重一直调高、分数还在涨。**分数一直涨不见顶本身就是过拟合的警报**，
 不是好事。所以定了条准则：**只取 easy/medium/hard 三个难度桶齐涨的最大值**。
-权重 2 三桶齐涨，收；权重 3 时 easy 涨了但 medium 掉了，止步。
+在某个权重上三桶齐涨，收；再进一格 easy 涨了但 medium 掉了，止步。
 
 > ⚠️ @BestBucky 审阅意见（已采纳）：原稿标题"我们刻意没要更高的分"是**一句需要辩护的自夸**，
 > 容易被听成"你们没优化到位"。改成"我们定了一条停止准则"后，它变成
