@@ -745,10 +745,10 @@ boilerplate, and this is where a reader can see whether the collaboration was re
 
 > **Zhou Junkai (B):** My dense route never made it into the default path, and that is fine — its
 > real job turned out to be diagnostic, not additive. It proved Recall@pool was already 1.000, so
-> nothing downstream could gain from more candidates; and under paraphrase stress it showed where
-> robustness actually lives: +0.011 to +0.020 at L1-L3, nothing at L4, because L4 breaks in the
-> parser, not the index. We ship it off, one environment variable away, with the numbers on the
-> table instead of hidden.
+> nothing downstream could gain from more candidates; and once we instrumented it, the same
+> mechanism that costs 0.0090 on the untouched public set turned out to be the one that rescues
+> dead sessions under paraphrase (+0.0149 at L2). We ship it off, one environment variable away,
+> with the numbers on the table instead of hidden.
 
 > **Lin Xiaoxiao (C):** The gain I am least proud of is the one that moved the score most. It did
 > not come from a better method — it came from noticing we had been asking the wrong question:
