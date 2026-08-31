@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif">
+  <!--
+    Demo video · Act 5 visual · 1920x1080 (native recording resolution)
+    ENGLISH ONLY — judge-facing asset.
+
+    Why this card exists: Act 5 claimed "understanding a shopper who says it differently"
+    without ever showing what that looks like. This is that example, and it uses the SAME
+    session the viewer already met in Act 2 (public_0007), so no new setup is needed.
+
+    Both strings are REAL output, not mock-ups:
+      L0  evaluator template
+      L4  scripts/paraphrase_stress.py, level L4 (colon removed, payload buried mid-sentence)
+      reproduce: python3 -c "import importlib.util as u; s=u.spec_from_file_location(
+                 'p','scripts/paraphrase_stress.py'); m=u.module_from_spec(s);
+                 s.loader.exec_module(m); print(m.paraphrase(MSG,'L4'))"
+    Parser verbatim recall at L4 (scripts/parser_accuracy.py, 450 messages):
+      rules only 0 percent   ·   with the model layer 76 percent
+    Ranking arm for contrast (REPORT section 7): titles only 0.020 worse, 106x slower.
+
+    LAYOUT BUDGET — keep these or text collides (this bit prior-axis.svg once already):
+      row tag        x 120 ...  300   (font 27, uppercase)
+      quote text     x 120 ... 1800   (font 38, max 78 chars per line, 2 lines max)
+      recall label   x 120 ...  700   (font 34)
+      recall value   right-aligned at x 1800, 74px mono, max 5 glyphs
+      bottom copy    x 120, font 44 title, font 30 sub, max 76 chars
+    Verify by rendering the WHOLE frame; reading the source is not enough.
+  -->
+  <rect x="0" y="0" width="1920" height="1080" fill="#0E1512"/>
+
+  <text x="120" y="132" fill="#E7EEEA" font-size="58" font-weight="700">The same shopper. The same words.</text>
+  <text x="120" y="190" fill="#8D9C96" font-size="32">Said the way a real person would say it</text>
+  <line x1="120" y1="232" x2="1800" y2="232" stroke="#2C3833" stroke-width="2"/>
+
+  <text x="120" y="306" fill="#8D9C96" font-size="27" letter-spacing="2">WHAT THE TEST SET SAYS</text>
+  <text x="120" y="372" fill="#8D9C96" font-size="38">For that, what matters is: <tspan fill="#E7EEEA" font-weight="600">75% Polyester, 20% Rayon, 5% Spandex</tspan>.</text>
+  <text x="120" y="424" fill="#4EE0A8" font-size="27">rules find it — 98.8% of the time</text>
+
+  <line x1="120" y1="476" x2="1800" y2="476" stroke="#1B2521" stroke-width="2"/>
+
+  <text x="120" y="548" fill="#8D9C96" font-size="27" letter-spacing="2">WHAT A SHOPPER SAYS</text>
+  <text x="120" y="614" fill="#8D9C96" font-size="38">On that front I'd say <tspan fill="#E7EEEA" font-weight="600">75% Polyester, 20% Rayon, 5% Spandex</tspan> pretty</text>
+  <text x="120" y="662" fill="#8D9C96" font-size="38">much covers what counts for me.</text>
+  <text x="120" y="714" fill="#E8796B" font-size="27">same words — but the colon is gone, and our rules key on the colon</text>
+
+  <line x1="120" y1="778" x2="1800" y2="778" stroke="#2C3833" stroke-width="2"/>
+
+  <text x="120" y="856" fill="#8D9C96" font-size="34">Rules alone, on this phrasing</text>
+  <text x="1800" y="866" fill="#E8796B" font-size="74" font-weight="700" text-anchor="end"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">0%</text>
+  <text x="120" y="932" fill="#E7EEEA" font-size="34">With the model layer</text>
+  <text x="1800" y="942" fill="#4EE0A8" font-size="74" font-weight="700" text-anchor="end"
+        font-family="'IBM Plex Mono',ui-monospace,monospace">76%</text>
+
+  <text x="120" y="1012" fill="#E7EEEA" font-size="40" font-weight="700">So the model <tspan fill="#4EE0A8">listens</tspan>. It doesn't rank.</text>
+</svg>
