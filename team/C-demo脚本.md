@@ -149,7 +149,9 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 而且删掉没有损失任何"找得到"的能力：五个改写档命中率一档没掉，agent 反而更快了。
 
 > 📌 **改稿依据（08-31）**：账本图一帧不用改——它从"战果"变成了"弃权的证据"。
-> 实测：撤销后五档 HitRate 逐档完全不变、MTTC 2.155→1.920，代价 100% 落在 MRR。
+> 实测：撤销后五档 HitRate 逐档完全不变、MTTC 2.130→**1.935**，代价 100% 落在 MRR。
+> ⚠️ 09-01 更正：口播里的 "almost three points" 应为 **+0.0244**（0.9466 → 0.9710，提交档实测）；
+> 旧的 0.0286 是先验重扫前 `POP_WEIGHT=2.0` 的 like-for-like 值。账本图底部两行已按此改（见 T-034）。
 > 原理没丢，只是搬到了检索侧（何时引入语义候选，而非何时少展示），见 REPORT §5 与实验 40。
 
 **② 我们定了一条停止准则**
@@ -295,7 +297,7 @@ AGENT_IMPL=baseline python3 scripts/trace_session.py --id public_0007 | sed -n '
 第 2 轮拿"你问我一个具体属性吧"这句抱怨当搜索词后，top-10 直接崩成
 **自行车裤 / 万圣节袜子 / 束腰马甲 / 鼻环** —— 讲解词里点名的那几样都在。
 
-## 幕 2 的命令不用截断
+## 幕 2 的命令不用截断（但要注意行数：实测 40 行，非原写的 22 行）
 
 ```bash
 python3 scripts/trace_session.py --id public_0007
@@ -360,7 +362,8 @@ python3 scripts/trace_session.py --id public_0007
 # 幕 1 —— 必须截断，跑满 10 轮是 152 行，会刷屏
 AGENT_IMPL=baseline python3 scripts/trace_session.py --id public_0007 | sed -n '1,/第 3 轮/p' | sed '$d'
 
-# 幕 2 —— 不用截断，只有 22 行
+# 幕 2 —— 撤销藏牌后每轮列 10 件，实测 40 行（脚本原写的 22 行是藏牌时代的数）
+# 40 行 + 命令行 ≈ 42 行：终端字号用 14pt 全屏可容纳；18pt 会滚屏
 python3 scripts/trace_session.py --id public_0007
 ```
 

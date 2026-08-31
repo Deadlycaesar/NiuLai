@@ -8,7 +8,9 @@
       A  hit on turn 1 at rank 7 : 0.500 + 0.043 + 0.200 = 0.743
       B  hit on turn 2 at rank 1 : 0.500 + 0.300 + 0.180 = 0.980
     Verify:  python3 -c "print(0.5+0.3/7+0.2, 0.5+0.3+0.18)"
-    Live rank-1 count: python3 -m evaluator.local_evaluator  (192/200; was 106 before)
+    09-01: withholding was REMOVED from the shipped default (EARLY_TOPK=0). The ledger above still
+    holds — it is now the evidence for why we gave it up, not a claim about what we ship.
+    Shipped rank-1 count: 162/200. Restoring it (EARLY_TOPK=1) is worth +0.0244, not the older 0.0286.
 
     LAYOUT BUDGET — keep these or text collides (this already bit prior-axis.svg once):
       row marker     x 120 (✗ / ✓, 40px) — @陈智龙 T-019: in a 3-second read,
@@ -78,6 +80,6 @@
 
   <!-- Takeaway -->
   <line x1="120" y1="928" x2="1800" y2="928" stroke="#2C3833" stroke-width="2"/>
-  <text x="120" y="986" fill="#E7EEEA" font-size="34">So on early turns we show <tspan fill="#4EE0A8" font-weight="700">one</tspan> product, not ten.</text>
-  <text x="120" y="1030" fill="#E7EEEA" font-size="34">Sessions ranked first: <tspan fill="#8D9C96">106</tspan> → <tspan fill="#4EE0A8" font-weight="700">192</tspan> out of 200.</text>
+  <text x="120" y="986" fill="#E7EEEA" font-size="34">So we showed <tspan fill="#4EE0A8" font-weight="700">one</tspan> product on early turns, not ten — worth <tspan fill="#4EE0A8" font-weight="700" font-family="'IBM Plex Mono',ui-monospace,monospace">+0.0244</tspan>.</text>
+  <text x="120" y="1030" fill="#E7EEEA" font-size="34">Then we <tspan font-weight="700">removed</tspan> it. A storefront shows ten — those <tspan fill="#8D9C96">31</tspan> sessions are the price.</text>
 </svg>
