@@ -32,14 +32,23 @@ USE_LLM = os.environ.get("USE_LLM", "0") == "1"
 # M1：LLM 兜底解析（第三层防线：严格模板 → 规则载荷抽取 → LLM 逐字片段抽取）。
 # 只在前两层落空、salvage 即将退回"整句切分"最弱路径时触发；LLM 产出强制过
 # verbatim 校验（归一化后必须是原消息子串），确保不破坏逐字指纹信号。
-# 默认关；开着但无 key/断网时两次失败即熔断，行为与纯规则路径一致。
-LLM_PARSE = os.environ.get("LLM_PARSE", "0") == "1"
+# 08-31 起默认【开】(实验 41)：L0 构造性零触发——公开卷 llm_calls=0、分数逐位不变，
+# 只在规则失手时介入；改写档增益 L2 +0.036 / L3 +0.060 / L4 +0.098，且 L3/L4 的 HitRate 回到 1.000。
+# 无 key/断网时两次失败即熔断，退回纯规则路径（分数等于本层不存在）。
+# 官方计分环境可能禁网（docs/submission_rules.md:59-64），提交须声明本层为"增强模式"而非依赖。
+LLM_PARSE = os.environ.get("LLM_PARSE", "1") == "1"
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 LLM_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 # 45 而非 20：实测 GLM-4.7-Flash 免费额度单次调用可达 21.5s，20s 超时会导致
 # 整轮实验静默降级到规则路径（C-T9（实验 25a）第 2 次复跑 tokens=0 即此故障）。
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
+# 解析层专用超时（08-31）：45s 是为排序侧 GLM-4.7-Flash 免费额度定的（实测可达 21.5s），
+# 但解析层调用小得多——实测 mean 0.72~1.18s / p95 1.0~5.6s。沿用 45s 会让最坏单轮达
+# 2×45=90s，而官方保留"超时记 miss"的权利（docs/submission_rules.md:100-101 的 timeout 限制）。
+# 取 12s：覆盖 p95 两倍余量，最坏单轮压到 2×12=24s；超时后重试一次，两次都失败即熔断退回规则路径
+#（代价仅为该条消息走较弱的规则解析，远小于一次会话级 miss）。
+LLM_PARSE_TIMEOUT = float(os.environ.get("LLM_PARSE_TIMEOUT", "12"))
 LLM_RERANK_POOL = int(os.environ.get("LLM_RERANK_POOL", "20"))  # 送 LLM 精排的候选数
 # M3：LLM 精排的 prompt 形态（C-T9 对照实验）。
 #   basic    = 只喂标题+价格、上下文用 state.distilled（实验 4b/4c 的原版，已知负收益）
@@ -52,11 +61,14 @@ LLM_PROMPT = os.environ.get("LLM_PROMPT", "evidence")
 # M3：热度先验权重（0 = 关闭）。依据：目标取自真实购买记录，真实购买集中在热门商品。
 # 停止准则（实验 10c）：取"三个难度桶齐涨"的最大值。w=2.0 时 easy/medium/hard 全涨；
 # w=3.0 时 easy 继续涨但 medium 掉（.825→.812）= 开始学公开集采样特征，故止步 2.0。
-POP_WEIGHT = float(os.environ.get("POP_WEIGHT", "2.0"))
+# 08-31 重扫（实验 43 仲裁）：撤销藏牌后满 10 件全部计入 MRR，最优点从 2.0 漂到 2.75。
+# 三桶 easy +0.0088 / medium +0.0051 / hard ±0，无回退。w=2.75 需配 HAS_PRICE=0.95：
+# 配 1.0 时 medium 因单条会话 public_0127 回退 -0.00038 被淘汰，山脊在 HAS_PRICE<1.0 一侧。
+POP_WEIGHT = float(os.environ.get("POP_WEIGHT", "2.75"))
 
 # M3：has_price 先验权重（0 = 关闭）。依据：目标商品 89.0% 有 price 字段，全目录仅 20.8%。
 # 与热度独立——低热度子集里全目录 has_price 20.2% 而目标 86.3%（差 66 个百分点）。
-HAS_PRICE_WEIGHT = float(os.environ.get("HAS_PRICE_WEIGHT", "1.0"))
+HAS_PRICE_WEIGHT = float(os.environ.get("HAS_PRICE_WEIGHT", "0.95"))
 
 # M3：features 条数先验（实验 10b 已证伪：0.5 → 0.9176、1.0 → 0.9127，均低于不加）。保留开关供复现。
 FEATURE_COUNT_WEIGHT = float(os.environ.get("FEATURE_COUNT_WEIGHT", "0"))
@@ -64,7 +76,11 @@ FEATURE_COUNT_WEIGHT = float(os.environ.get("FEATURE_COUNT_WEIGHT", "0"))
 # M3：低置信轮的推荐条数上限（0 = 关闭，始终给满 10 条）。
 # 依据：命中即终局，第 1 轮以第 7 名命中会把烂名次锁死（MRR 记 1/7）；
 # 若第 1 轮少给几条、第 2 轮拿到约束后以第 1 名命中，单条会话净赚 0.237 分。
-EARLY_TOPK = int(os.environ.get("EARLY_TOPK", "1"))
+# 08-31 决定从默认档【移除】(实验 37)：机制真实且可观（TOPK=1 相对 0 值 +0.0286），
+# 但"每轮只推 1 件"是反用户的展示行为，与 Impact/Feasibility 评审维度冲突。
+# 撤销实测：五档 HitRate 逐档完全不变、MTTC 反而更快（2.155→1.920），代价 100% 落在 MRR。
+# 同一原理（命中即终局下，早早以烂名次命中比晚一轮以第 1 名命中更亏）在检索侧的等价物见实验 40。
+EARLY_TOPK = int(os.environ.get("EARLY_TOPK", "0"))
 # 应用 EARLY_TOPK 的轮次上限。停止准则（实验 11a）：TURNS=2 三桶齐涨且 miss 不变；
 # TURNS=3 时 easy hit 掉 .988→.975、medium hit 掉 1.000→.989、miss 1→3 = 拐点。
 EARLY_TURNS = int(os.environ.get("EARLY_TURNS", "3"))

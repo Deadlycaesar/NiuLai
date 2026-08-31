@@ -337,7 +337,7 @@ def _llm_extract(state: DialogState, message: str, turn: int) -> bool:
     global _llm_parse_failures
     if not config.LLM_PARSE or _llm_parse_failures >= 2:
         return False
-    reply = llm_client.chat_json(_PARSE_SYSTEM, message, max_tokens=200)
+    reply = llm_client.chat_json(_PARSE_SYSTEM, message, max_tokens=200, timeout=config.LLM_PARSE_TIMEOUT)
     if reply is None:
         _llm_parse_failures += 1
         return False

@@ -7,21 +7,31 @@ conversational turns.
 
 | | Public set (200 sessions) |
 |---|---|
-| **TechnicalScore** | **0.9694** |
+| **TechnicalScore** | **0.9466** |
 | HitRate@10 | **1.000** — all 200 sessions converted |
-| MRR | 0.975 |
-| MTTC | 2.155 turns |
+| MRR | 0.884 |
+| MTTC | 1.935 turns |
 | Official weak-BM25 baseline | 0.107 |
 
-Runs fully offline: **no third-party dependencies, no network calls, no API cost.** A full
-200-session evaluation completes in **~10 seconds**, and we verified it under a simulated total
-network outage (experiment 29).
+We ship 0.9466 rather than the 0.9710 the same code reaches with `EARLY_TOPK=1`. That mechanism
+showed one product per turn instead of ten, which is the opposite of what a storefront should do, so
+we removed it from the default and priced what it cost us: HitRate is unchanged at every paraphrase
+level, MTTC actually improves, and the entire 0.024 falls on ranking precision. §Limitations has the
+full accounting.
+
+**Nothing to install for the default path** — it uses only the standard library, and a full
+200-session evaluation completes in **~10 seconds** (verified under a simulated total network
+outage, experiment 29). The parsing model layer is an **enhancement, not a dependency**: on
+unmodified phrasing it makes **zero calls**, so the headline number above is bit-identical with or
+without network access. It wakes only where the rule layers fail, which is where it is worth
++0.036 / +0.060 / +0.098 at paraphrase levels L2 / L3 / L4; without credentials it degrades to the
+rule-only path after two consecutive failures.
 
 ## Quick start
 
 ```bash
 python3 scripts/prepare_catalog.py     # verify SHA-256 and extract the catalogue (once)
-python3 -m evaluator.local_evaluator   # → recommended_technical_score: 0.9694
+python3 -m evaluator.local_evaluator   # → recommended_technical_score: 0.9466
 ```
 
 Python 3.10+. **Nothing to install** — the submitted configuration uses only the standard library.
@@ -103,9 +113,14 @@ not in verbatim matching. That turned the fix from "understand meaning" into "ex
 
 | Parsing stack | L0 unmodified | L1 phrasing | L2 + short values | L3 + spec strings | L4 colon-free speech |
 |---|---|---|---|---|---|
-| Strict templates only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
-| **+ rule salvage** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
-| + LLM extraction (`LLM_PARSE=1`) | 0.9694 | **0.9694** | **0.9547** | **0.9640** | **0.9551** |
+| Strict templates only † | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
+| + rule salvage (offline path) | 0.9466 | 0.9259 | 0.8914 | 0.8765 | 0.8269 |
+| **+ LLM extraction** (`LLM_PARSE=1`, shipped default) | **0.9466** | **0.9374** | **0.9230** | **0.9311** | **0.9168** |
+
+† Measured against the pre-08-31 ranking configuration; rule salvage has no runtime switch, so this
+row is kept for its shape rather than its absolute value. Note that L3 outscores L2 once the LLM
+layer is on — L3's heavier rewriting pushes more turns into it, and its verbatim extraction is
+cleaner than the rule layer's whole-sentence fallback.
 
 Three layers, each firing only when the previous one fails: strict templates → rule-based salvage →
 optional verbatim-verified LLM extraction. Layers 2 and 3 are constructed so they cannot fire on the
@@ -176,12 +191,14 @@ category with other catalogue items, so the generated dialogue is byte-identical
 ## Limitations
 
 Our strongest signals are fitted to a simulator whose generation rules are published. The verbatim
-fingerprint, the intent-card mirror bonus and the withholding policy would all need rethinking in a
-production setting: real shoppers do not quote catalogue text, and no storefront shows a single
-product on the first screen. `MIRROR_BONUS=0 EARLY_TOPK=0` disables both benchmark-shaped mechanisms;
-the system still scores **0.9383 with HitRate 1.000** in that configuration, and the general
-machinery underneath — keyword plus phrase retrieval, non-displacing fusion, independent re-ranking
-over match, category and purchase-likelihood features — is the standard commercial shape.
+fingerprint and the intent-card mirror bonus would both need rethinking in a production setting:
+real shoppers do not quote catalogue text. A third such mechanism — withholding all but one
+recommendation on early turns — we removed from the default rather than defend it, because no
+storefront shows a single product on the first screen. It was worth **0.024**, and removing it cost
+nothing in reach: HitRate is unchanged at every paraphrase level and MTTC improves. `MIRROR_BONUS=0`
+switches off what remains, at a cost of 0.003. The general machinery underneath — keyword plus
+phrase retrieval, non-displacing fusion, independent re-ranking over match, category and
+purchase-likelihood features — is the standard commercial shape.
 
 Our ranker is a hand-weighted linear scorer. With behavioural data at commercial scale the natural
 successor is a learned ranker (LambdaMART/XGBoost over the same features); with 200 labelled sessions,
