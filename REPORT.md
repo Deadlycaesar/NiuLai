@@ -221,7 +221,8 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
    the published `classify_constraint()`, and we disclose that openly; the general entropy policy
    remains available behind a flag.
 3. **The dense route ships disabled (`USE_DENSE=0`) — the one place we knowingly left measurable
-   value on the table.** It is not dead code: it lifts Recall@pool to 1.000, and under paraphrase
+   value on the table.** It is not dead code: Recall@pool is already 1.000 without it — its
+   recall value is redundancy against a private-set catalog swap — and under paraphrase
    stress it adds +0.011 to +0.020 at levels L1-L3 — five to ten times our own 0.002 noise
    threshold, and far more than the +0.0016 it is worth on the unmodified public set. We ship it
    off anyway, for two reasons worth stating rather than rounding off. Its benefit is conditional
