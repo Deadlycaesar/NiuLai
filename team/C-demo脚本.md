@@ -125,20 +125,27 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 
 ## 幕 4 · 两个反直觉的决定（1:46–2:43 · 133 词）
 
-**① 主动"藏牌"反而得分更高**
+**① 我们找到一个技巧，量化了它，然后删掉了它**
 
 **画面**：[`assets/withholding-ledger.svg`](assets/withholding-ledger.svg)（1920×1080 原生，全屏）
 
 > **EN**
 > "A hit ends the session — and locks in that turn's rank.
 > So converting at turn one in seventh place is **worse** than converting at turn two in first place.
-> Thirty-one sessions were stuck in exactly that trade.
-> So on the early turns, our agent shows **one** product instead of ten.
-> If it is right, that is a perfect result. If it is wrong, we lose nothing — we just ask again."
+> Thirty-one sessions were stuck in exactly that trade. So we showed **one** product instead of ten
+> on the early turns. It was worth almost three points.
+> Then we **removed** it. Showing a shopper a single product is not a storefront.
+> And removing it cost us nothing in reach — the same hit rate at every paraphrase level,
+> and the agent actually got **faster**."
 
 中文对照：命中即终局，并锁死那一轮的名次。所以"第 1 轮第 7 名"比"第 2 轮第 1 名"更差。
-我们有 31 条会话正卡在这个亏损交易上。于是信息不足的头几轮只推 **1 件**——
-押中就是完美，押不中也不亏，下一轮再问。
+我们有 31 条会话正卡在这个亏损交易上，于是头几轮只推 **1 件**，值将近 3 分。
+**然后我们把它删了**——只给顾客看一件商品，那不叫商店。
+而且删掉没有损失任何"找得到"的能力：五个改写档命中率一档没掉，agent 反而更快了。
+
+> 📌 **改稿依据（08-31）**：账本图一帧不用改——它从"战果"变成了"弃权的证据"。
+> 实测：撤销后五档 HitRate 逐档完全不变、MTTC 2.155→1.920，代价 100% 落在 MRR。
+> 原理没丢，只是搬到了检索侧（何时引入语义候选，而非何时少展示），见 REPORT §5 与实验 40。
 
 **② 我们定了一条停止准则**
 
@@ -166,20 +173,28 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 > We tested an LLM re-ranker. It made results **worse** — and we kept that finding in the log.
 > The organizers said the shopper's wording may be paraphrased.
 > The public set cannot show that, so we measured it ourselves.
-> And of the eight sessions we still do not rank first, **seven are provably impossible** —
+> And of the thirty-eight sessions we do not rank first, **seven are provably impossible** —
 > identical intent cards, identical dialogue. One target has forty-six twins.
-> We proved our own ceiling.
-> No dependencies. No network. No API cost. Two hundred sessions in ten seconds."
+> The other thirty-one are the price of showing ten products instead of one.
+> We measured that price, and we chose to pay it.
+> Two hundred sessions in ten seconds. The model layer only wakes when the rules fail —
+> on the public set, it never fires once. Take away the network, and the score does not move."
 
-> 🔒 **这句话锁定在 `USE_DENSE=0`（T-004 维持取 0）。** @周峻恺 在 T-015 抓到的联动：
-> 若将来 T-004 重开、dense 进提交，这句必须改成限定版，例如
-> *"Runs fully offline; an optional dense path degrades gracefully when its assets are absent."*
-> 改配置的人请连这句一起改——它是全片唯一一处会因配置变化而**说错话**的地方。
+> ✅ **配置锁已解除（08-31）**：原句 "No dependencies. No network. No API cost." 在 `LLM_PARSE=1`
+> 成为默认后不再成立，已改写。新句子更强也更准——它陈述的是一个可验证的事实：
+> 公开卷上解析模型 `llm_calls = 0`、分数与纯规则逐位相同，断网时熔断退回规则路径，headline 不变。
+> "离线"从产品卖点降级为对计分环境的合规适配（`docs/submission_rules.md:59-64` 允许禁网计分）。
+>
+> ✅ **已重算（08-31，定稿配置）**：未排第 1 = **38** 条。逐会话对照两档确认了一个漂亮的对称——
+> 两档都排不到第 1 的恰好 **7** 条（`public_0020/0076/0083/0099/0144/0145/0172`，孪生不可分，与配置无关），
+> 仅因撤销藏牌而掉出第 1 的恰好 **31** 条，**与本片幕 4 里那"31 条卡在亏损交易上的会话"是同一批**。
+> 幕 4 说我们删掉了那个技巧，幕 5 报出删掉它的确切代价——两幕由同一个数字缝合，且可复现。
 
 中文对照：快讲三件事。我们测了 LLM 精排，**结果是变差**，这个结论留在了实验记录里。
 官方说过用户话术可能被改写，公开集测不出来，所以我们自己写了压力测试去量它。
-还剩 8 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
-其中一条有 46 个孪生商品。**我们证明了自己的天花板。**
+38 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
+其中一条有 46 个孪生商品。**另外 31 条，正是"摆 10 件而不是 1 件"的代价——
+我们量过这个价钱，然后选择付它。**
 零依赖、零网络、零 API 成本，200 条会话 10 秒跑完。
 
 > 🗣 原稿用的 `information-theoretically impossible` 太长、不好念，

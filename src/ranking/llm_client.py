@@ -25,7 +25,7 @@ def pop_usage() -> dict:
     return current
 
 
-def chat_json(system: str, user: str, max_tokens: int = 200) -> dict | None:
+def chat_json(system: str, user: str, max_tokens: int = 200, timeout: float | None = None) -> dict | None:
     """一次 JSON 模式调用。失败/超时/空内容 → 重试一次 → 仍失败返回 None（上层走规则兜底）。"""
     if not config.LLM_API_KEY:
         return None
@@ -50,7 +50,7 @@ def chat_json(system: str, user: str, max_tokens: int = 200) -> dict | None:
     )
     for _attempt in range(2):
         try:
-            with urllib.request.urlopen(request, timeout=config.LLM_TIMEOUT) as response:
+            with urllib.request.urlopen(request, timeout=config.LLM_TIMEOUT if timeout is None else timeout) as response:
                 data = json.loads(response.read())
             usage = data.get("usage") or {}
             _usage["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)

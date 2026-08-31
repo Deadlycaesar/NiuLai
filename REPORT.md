@@ -2,9 +2,10 @@
 
 **TikTok TechJam 2026 · Track 4** · Team NiuLai · Final report
 
-**Public-set TechnicalScore 0.9694** (HitRate@10 **1.000** / MRR 0.975 / MTTC 2.155), up from the
-official weak-BM25 baseline of 0.107. Fully offline by default: zero third-party dependencies,
-zero API tokens, zero cost, 200 sessions evaluated in 9.7 seconds.
+**Public-set TechnicalScore 0.9466** (HitRate@10 **1.000** / MRR 0.884 / MTTC 1.935), up from the
+official weak-BM25 baseline of 0.107. The same code reaches 0.9710 with one flag; §9 explains why we
+do not ship that flag. Standard library only — 200 sessions evaluated in about ten seconds, and the
+headline number is bit-identical with or without network access.
 
 ---
 
@@ -37,11 +38,10 @@ respond() ─→ M1 parser / state machine ─→ M2 retrieval ─→ M3 ranking
 ```
 
 **M1 — dialogue control.** A slot state machine over the customer's disclosed constraints, plus a
-three-layer parsing defence (§4). Question policy is a constant: always ask `other`. This is
-provably optimal here — `classify_constraint()` can never return `category` or `brand`, so asking
-either is guaranteed to be wasted, while `other` matches any undisclosed constraint. We kept a
-general entropy-based policy behind a flag (`ASK_POLICY=entropy`, measured 0.830 vs 0.861 at the
-time) for ablation and for the general case.
+three-layer parsing defence (§4). Question policy is a constant: always ask `other`. We did not
+settle for arguing that this is optimal — we bounded the entire ask dimension exhaustively, and §6
+reports both the bound and what the alternative costs. A general entropy-based policy ships behind
+`ASK_POLICY=entropy` for the non-simulator case.
 
 **M2 — retrieval.** SQLite FTS5 keyword search with field weighting, per-constraint phrase recall
 for slots of ≥3 tokens, and an optional pre-computed dense route (bge-small-en-v1.5) fused as a
@@ -94,15 +94,25 @@ The result is a three-layer defence, each layer firing only when the previous on
 |---|---|---|
 | 1. Strict templates | Exact evaluator句式 | free |
 | 2. Rule salvage | Colon payload, separators, override cues, category extraction | free |
-| 3. LLM extraction | Verbatim-verified fragment extraction; paraphrased output rejected | optional, default off |
+| 3. LLM extraction | Verbatim-verified fragment extraction; paraphrased output rejected | **default on**; zero calls at L0 |
 
 Measured across stress levels (L0 = unmodified public set):
 
 | Parsing stack | L0 | L1 phrasing | L2 + short values | L3 + spec strings | L4 colon-free |
 |---|---|---|---|---|---|
-| Layer 1 only | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
-| **+ Layer 2** (default) | **0.9694** | **0.9551** | **0.9218** | **0.8896** | 0.8486 |
-| + Layer 3 (`LLM_PARSE=1`) | 0.9694 | **0.9694** | **0.9547** | **0.9640** | **0.9551** |
+| Layer 1 only † | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
+| + Layer 2 (offline path) | 0.9466 | 0.9259 | 0.8914 | 0.8765 | 0.8269 |
+| **+ Layer 3** (`LLM_PARSE=1`, shipped default) | **0.9466** | **0.9374** | **0.9230** | **0.9311** | **0.9168** |
+
+† The Layer-1-only row was measured against the pre-08-31 ranking configuration (`EARLY_TOPK=1`,
+`POP_WEIGHT=2.0`). Rule salvage has no runtime switch, so it could not be re-measured under the
+shipped weights without editing code, which our stop rule forbids for measurement alone. The row is
+kept for its *shape* — template changes alone cost −0.183 — not for its absolute value.
+Note also that L3 now scores above L2 once Layer 3 is on: L3 rewrites long spec strings and pushes
+more turns into the LLM layer, whose verbatim extraction is cleaner than the rule layer's
+whole-sentence fallback; L2's half-damaged values more often slip past the rule layer's own
+validation and never reach it. The curve is no longer monotonic in rewrite severity.
+
 
 Layer 2 is constructed so it can only fire when strict templates miss — it is byte-for-byte inert on
 the public set. Layer 3 additionally validates that anything the model returns is a contiguous
@@ -165,11 +175,65 @@ opposite distribution from this benchmark: real shoppers do not quote product co
 our table is closer to their reality than L0 is, and the balance of rules and models should shift
 accordingly.
 
+We later turned that sentence into a measurement. A gate that admits dense candidates only when no
+candidate in the keyword pool matches every active slot verbatim opens **0 times in 384 turns at
+L0**, then 64.7% at L1, 96.0% at L2, 96.9% at L3. The verbatim signal does not merely usually work
+on unmodified phrasing — on this benchmark it never fails, which is why the dense route can only
+cost ranking precision there, and can only earn recall once paraphrase breaks it.
+
+Routing individual constraints rather than whole turns sharpens this further. Classifying each
+constraint by whether it exists verbatim anywhere in the catalogue, sending only the non-existent
+ones into a semantic ranking term, and forbidding that term from adding candidates, is an exact
+no-op at L0 (0.940829, bit-identical) and worth +0.0029 / +0.0039 at L2 / L3 with HitRate untouched
+at every tier. The same routing then shows why the idea cannot pay once the parser is repaired: with
+`LLM_PARSE=1` the "vague" bucket collapses — 25.2% → **0%** at L1, 75.5% → 23.0% at L2, 95.5% →
+9.8% at L3. Those constraints were never semantically vague; they were fragments the rule parser had
+cut mid-phrase, and boundary repair restores them to verbatim-matchable form. **Damaged is not
+vague**, and this benchmark contains only the former.
+
+On the ~38% of L2 turns where routing still fires correctly, the semantic term *loses* 0.0035. The
+within-pool cosine spread is 0.038 across ~115 candidates, so after normalisation it amplifies
+near-ties rather than separating anything. That is the honest ceiling of semantic retrieval here —
+a property of a benchmark whose simulated customer quotes product copy verbatim, not a property of
+semantic retrieval. A shopper asking for something "flattering" gives no string to extract, and
+nothing but semantics can move toward them.
+
 **So the LLM is used to listen, not to rank.** Both LLM paths default to off; the offline path is the
 only default path. Model: GLM-4.7-Flash (free tier), swappable via `LLM_BASE_URL` / `LLM_MODEL`.
 Full latency/token/cost numbers: [`team/成本与延迟披露.md`](team/成本与延迟披露.md).
 
-## 6. Method: how we decided what to keep
+## 6. The question policy: we bounded the dimension instead of arguing about it
+
+The brief asks the agent to "ask a useful question when important information is missing", and adds
+the criterion that separates a strong agent from a talkative one — it should ask "only when the
+expected value of the answer is high". We took that literally and measured the expected value.
+
+`customer_reply()` decides what a question earns. `other` short-circuits the constraint filter and
+matches *any* undisclosed constraint, returning up to two per turn. A named attribute matches only
+constraints whose `classify_constraint()` label is equal, and may return zero. `classify_constraint()`
+can never emit `category` or `brand`, so those two questions are guaranteed to earn nothing. Asking
+is free — a turn can both ask and recommend — and a hit ends the session immediately.
+
+Under those rules the greedy optimum is to ask `other` every turn, and we can price the alternative.
+Replacing it with an entropy policy that picks the highest-information attribute from the live
+candidate set costs **-0.0252** (0.9442 vs 0.9694, measured with every other setting held fixed at
+the then-shipped configuration). HitRate is 1.000 in both; what changes is that
+81 of 200 sessions hit *later* and 14 finish at a worse rank. The information a named question buys
+is real, but smaller than the turn it spends.
+
+We then bounded the dimension exhaustively rather than trusting that argument. Enumerating the best
+possible question sequence per session — an oracle with knowledge of the hidden card — the entire
+ask dimension is worth **+0.00385** over constant `other`, and that ceiling is reachable only by
+memorising the public split. Every generalisable single-policy variant we measured is negative:
+material-first -0.0029, feature-first -0.0023, colour-first -0.0075. **Constant `other` is the
+argmax of the generalisable policy family, and the headroom above it is 0.004 held by an oracle.**
+
+This is a property of the simulator, not a claim about shopping. A real shopper answers "anything
+else?" with silence, not with two more constraints; under that reply distribution the same
+expected-value framing selects named questions instead. The entropy policy therefore ships with the
+agent rather than being deleted, and we report its cost here rather than hiding a constant behind it.
+
+## 7. Method: how we decided what to keep
 
 Three rules, adopted after the first over-fitting scare and applied to every change since:
 
@@ -198,11 +262,11 @@ items, so the generated dialogue is byte-identical (one target has 46 such twins
 gain is 0.00075, below our own noise threshold. Further tuning would buy noise and pay for it in
 private-set generalisation.
 
-## 7. Reproduction
+## 8. Reproduction
 
 ```bash
 python3 scripts/prepare_catalog.py        # verify SHA-256, extract catalogue (once)
-python3 -m evaluator.local_evaluator      # 0.9694 — no dependencies, no network, ~10 s
+python3 -m evaluator.local_evaluator      # 0.9466 — standard library only, ~10 s
 python3 scripts/check_guards.py           # red-line self-check + 30 unit tests
 python3 scripts/parser_accuracy.py        # parser accuracy in isolation
 python3 scripts/paraphrase_stress.py      # robustness across 5 stress levels
@@ -212,37 +276,46 @@ python3 scripts/ceiling_diagnostic.py     # remaining headroom, decomposed
 Python 3.10+. The base path requires no third-party packages; `requirements.txt` applies only to the
 optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets are absent.
 
-## 8. Limitations
+## 9. Limitations
 
 1. **Public-set saturation is not private-set safety.** HitRate is 1.000 on 200 public sessions; the
    private 800 use different users and targets. Our best proxy is the paraphrase stress table in §4 —
    we expect 0.84–0.95 if paraphrasing is applied, and we have no way to narrow that range.
-2. **The `other`-only question policy is specific to this simulator.** It is provably optimal against
-   the published `classify_constraint()`, and we disclose that openly; the general entropy policy
-   remains available behind a flag.
-3. **The dense route ships disabled (`USE_DENSE=0`) — the one place we knowingly left measurable
-   value on the table.** It is not dead code: it lifts Recall@pool to 1.000, and under paraphrase
-   stress it adds +0.011 to +0.020 at levels L1-L3 — five to ten times our own 0.002 noise
-   threshold, and far more than the +0.0016 it is worth on the unmodified public set. We ship it
-   off anyway, for two reasons worth stating rather than rounding off. Its benefit is conditional
-   on a scenario nobody has confirmed: those paraphrase levels come from a mechanical rewriter we
-   wrote ourselves, useful for isolating which layer breaks first, not evidence about the private
-   set. Its cost is not a lower score but a harder failure mode: peak RSS rises from 530 MB to
-   1191 MB on the torch backend, or 787 MB on ONNX, against a memory ceiling the organizer
-   reserves the right to impose and never states. Missing assets degrade gracefully to pure BM25;
-   an OOM kill does not degrade at all. Thirty hours from the deadline we were not willing to
-   trade an unbounded downside for a conditional gain — but it is one environment variable away
-   if those limits turn out to be generous.
-4. **Two of our mechanisms are shaped by the benchmark rather than by shopping.** The intent-card
-   mirror bonus mirrors a generator that exists only in the evaluator, and withholding all but one
-   recommendation on early turns is the opposite of what a storefront should do. We treat these as
-   measured, removable mechanisms rather than as architecture: `MIRROR_BONUS=0 EARLY_TOPK=0` disables
-   both, and the system still scores **0.9383 with HitRate 1.000**. What remains underneath is the
-   conventional commercial shape — keyword plus phrase retrieval, non-displacing candidate union,
-   and independent re-ranking over match evidence, category and purchase-likelihood features. The
-   mirror bonus also has a production analogue we did not have room to build: a constraint matching a
-   product's *salient* attributes (title, structured specs, leading feature bullets) is stronger
-   evidence than one matching a phrase buried in paragraph eight of a description.
+2. **The `other`-only question policy is specific to this simulator.** §6 bounds it rather than
+   defending it: the whole ask dimension is worth +0.00385 to an oracle holding the hidden card,
+   every generalisable named-attribute policy we measured is negative, and the entropy alternative
+   costs -0.0252. We disclose this rather than presenting a constant as a strategy, and the entropy
+   policy ships behind a flag for the reply distribution a real shopper would produce.
+3. **The dense route ships disabled (`USE_DENSE=0`), and we now know why rather than suspecting
+   it.** Early measurements made it look like a free robustness win: +0.0016 on the unmodified
+   public set, +0.011 to +0.020 under paraphrase stress. Both were taken while early-turn
+   withholding was still on, and that mechanism was masking the cost. With withholding removed the
+   sign flips at L0 to **-0.0090**. Instrumentation explains it without appealing to noise:
+   dense-only candidates enter with a sentinel BM25 rank and therefore a ~1.0-point handicap, so
+   they never displace anything — what they do is *add recall*, which surfaces the target one turn
+   earlier at a mediocre rank, and stop-on-hit locks that rank in. At L0, 17 of 18 changed sessions
+   hit earlier, 11 of them at a worse rank, and none were rescued from a miss; at L2 the identical
+   behaviour lands on sessions that would otherwise never hit — four outright rescues — so it earns
+   there instead. One mechanism, two counterfactuals. Once `LLM_PARSE=1` repairs the upstream parse
+   the L2 counterfactual reverts to the L0 one, and dense loses at every tier (-0.0065 to -0.0106).
+   We keep the code and the flag: the route is correct engineering for a customer who does not quote
+   product copy, and §5 records exactly what it is worth here and why.
+4. **Our benchmark-shaped mechanisms: we removed the large one and kept the small one behind a
+   flag.** Withholding all but one recommendation on early turns was worth **+0.0286** and is the
+   opposite of what a storefront should do, so it is no longer the default (`EARLY_TOPK=0`).
+   Removing it costs nothing in reach — HitRate is unchanged at every paraphrase tier and MTTC
+   improves from 2.155 to 1.920. The entire cost falls on MRR, which is to say on ranking precision
+   the trick had been buying by declining to show candidates. What we kept is the principle
+   underneath it, moved to where a real product would also want it: under stop-on-hit, surfacing a
+   mediocre candidate early is worse than surfacing the right one a turn later, so the retrieval
+   side gates *when to introduce semantic candidates* instead of the display side hiding what it
+   already has (§5). The intent-card mirror bonus remains, worth +0.003 and disabled by
+   `MIRROR_BONUS=0`; it has a production analogue we did not have room to build — a constraint
+   matching a product's *salient* attributes (title, structured specs, leading feature bullets) is
+   stronger evidence than one matching a phrase buried in paragraph eight of a description. What
+   remains underneath is the conventional commercial shape: keyword plus phrase retrieval,
+   non-displacing candidate union, and independent re-ranking over match evidence, category and
+   purchase-likelihood features.
 5. **Our ranker is a hand-weighted linear scorer.** With behavioural data at commercial scale the
    natural successor is a learned ranker — LambdaMART or gradient-boosted trees over the same
    features, plus a cross-encoder over the low-confidence tail. With 200 labelled sessions, learning
@@ -252,7 +325,17 @@ optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when assets ar
 6. **Latency was measured on one machine** (Apple M5). Absolute numbers will differ; the ~106× ratio
    between offline and LLM paths should not.
 
-## 9. Team contributions
+7. **The parsing model is an enhancement, not a dependency, and we declare it as such.**
+   `LLM_PARSE=1` is the default. On unmodified phrasing it makes **zero calls** — `llm_calls = 0`
+   across all 200 public sessions, score bit-identical to the rule-only path — and wakes only where
+   the rule layers fail, which is where it is worth +0.036 / +0.060 / +0.098 at L2 / L3 / L4 and
+   restores HitRate to 1.000 at L3. Without network access or credentials it degrades to the
+   rule-only path after two consecutive failures, so in a network-restricted scoring environment the
+   headline number is unchanged. The observed worst case is a single call reaching the 45 s timeout
+   and succeeding on retry — the one place where a stricter organiser timeout could turn a slow call
+   into a miss.
+
+## 10. Team contributions
 
 | | Module | Contribution |
 |---|---|---|
