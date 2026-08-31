@@ -6,29 +6,59 @@
 > 你还兼**全篇数字审计**（05:30–06:30 那一轮）。
 
 ## The question this chapter answers
-<!-- one sentence -->
+
+Is the target product even inside the candidate pool — and if it always is, what is left for
+semantic retrieval to do?
 
 ## 1. Retrieval stopped being the bottleneck — and we proved it
-<!-- Recall@pool 1.000 (exp 6b). 关键：把因果写出来——召回满了 ⇒ 下游任何"多加候选"的方案都不可能提分。
-     D 的 profile 注入、LLM 补召回、dense 加候选，全部死在这一条上。 -->
+
+Recall@pool is **1.000**: across all 200 sessions, the product the simulated customer will
+eventually buy is always inside the 300-candidate pool before any ranking happens (exp 6b).
+This is not a boast; it is a premise, and several later negative results stand on it. Once the
+pool provably contains the target, no downstream idea of the form *"add more candidates"* can
+help — profile-based recall injection, LLM-suggested queries, and dense candidates all died on
+exactly this fact. Measuring recall first is what let us spend the rest of the project on the
+problems that were actually losing points.
 
 ## 2. What the keyword route actually does
-<!-- 字段加权 + 逐约束短语召回 (≥3 tokens, FTS5 phrase query) + BM25 sub-pool normalisation (exp 22)。
-     public_0020 被短语子池捞回 ⇒ HitRate 首次满分。 -->
+
+The main route is SQLite FTS5 keyword search with field weighting, plus two mechanisms aimed at
+the pool's edge cases. Slots with three or more tokens issue per-constraint FTS5 *phrase* queries
+alongside the main OR-token pool, and BM25 ranks are normalised within each sub-pool before
+merging. The phrase sub-pool exists because of one instructive failure: `public_0020`, an
+ultra-cold target whose constraints were all boilerplate, could never climb into the top-300 of
+the token pool — its phrase query, against a pool of almost nothing, brought it back. That was
+the session that took HitRate to 1.000 for the first time (exp 22).
 
 ## 3. The dense route: one mechanism, two counterfactuals
-<!-- exp 38 插桩：哨兵名次 ⇒ only adds recall, never displaces。
-     L0: 17 条提前命中 / 11 条名次变差 ⇒ −0.0090。L2: 4 条脱靶被救回 ⇒ +0.0149。
-     符号反转的原因是藏牌撤销 (exp 37)，不是 dense 本身变了。 -->
+
+We still built the semantic route — precomputed bge-small-en-v1.5 embeddings fused as a
+non-displacing union with sentinel ranks — and then instrumented it to see what it actually does
+(exp 38). It only ever adds recall; it never displaces a keyword candidate. But the same
+behaviour has two counterfactual outcomes depending on where it lands. On the unmodified public
+set it advances 17 sessions to an earlier hit while worsening the final rank of 11 — a net
+**−0.0090** (exp 37): "one turn earlier" cannot compensate for "not rank 1". Under stress level
+L2 the identical behaviour lands on sessions that would *never* have hit at all and rescues 4 of
+them — a net **+0.0149**. The sign flip is not the dense route changing; it is the removal of
+early-turn withholding (exp 37), which had been masking the harm channel all along. Under the old
+withholding configuration the same mechanism had read +0.0016 on the public set (exp 28,
+historical configuration) — the masking, measured.
 
 ## 4. We ship it off, and the reason is expected value, not magnitude
-<!-- exp 31：降级覆盖资产缺失、不覆盖 OOM；+0.015 有条件 vs −1.0 整场归零；P(OOM)<1.5% 无从论证。
-     exp 31a 那句诚实的话：基线 530 MB 本身就在同一条曲线上。
-     exp 29 断网真机验证逐位一致。 -->
 
-## 5. (optional) The verbatim-saturation gate
-<!-- exp 40: L0 0/384 = 0.0% → L1 64.7% → L2 96.0% → L3 96.9%
-     ⚠️ 现稿 §5 用过这条，写之前在留言板跟 C 对一下别重复 -->
+The decision to ship with `USE_DENSE=0` was not about the size of the gain but the shape of the
+loss (exp 31). The route's degradation path covers missing assets and missing dependencies — a
+missing embedding file falls back to pure BM25 gracefully, and we verified the whole pipeline
+bit-identical with the network physically off (exp 29). It does not cover OOM: a memory-limit
+kill does not degrade, it zeroes the run. Against a conditional gain of about +0.015 (paid only
+if the private set is paraphrased at all) stands a loss of ≈ −1.0, so the break-even is
+P(OOM) < 1.5% — and the organiser reserves memory limits without naming them. One honest
+footnote (exp 31a): our 530 MB baseline already sits on the same exposure curve, since a limit
+tight enough to kill the route's 787 MB ONNX peak (1,191 MB on PyTorch) would likely threaten
+530 MB too. Shipping off moves the point left on that curve; it does not leave it.
 
 ## Net effect
-<!-- one sentence -->
+
+Retrieval contributes a candidate pool that provably always contains the target, at zero marginal
+runtime risk; the dense route is kept, measured from both directions, and deliberately switched
+off (exp 6b, 22, 28, 29, 31, 37, 38).

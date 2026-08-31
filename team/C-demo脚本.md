@@ -10,7 +10,7 @@
 >
 > 评分权重提醒：Technical Execution 35% + Innovation 20% 都是人评，加起来 **55%**。
 > TechnicalScore 只是 Technical Execution 的一个客观输入（官方 commit `3407835` 专门澄清过）。
-> 所以这三分钟的目标不是把 0.9694 念出来，而是让评委相信**这个数字背后有方法**。
+> 所以这三分钟的目标不是把 0.9466 念出来，而是让评委相信**这个数字背后有方法**。
 
 ## 口播与字幕规范
 
@@ -53,7 +53,7 @@
 top-10 变成自行车裤和万圣节袜子。它得 0.107。
 
 > ⏱ 严格 30 秒，**但不要砍掉**。@BestBucky 的意见：这是全片唯一让观众看见"失败长什么样"的地方；
-> 没有那条自行车裤和万圣节袜子，**0.9694 就是一个没有标尺的数字**。30 秒买一个参照系很便宜。
+> 没有那条自行车裤和万圣节袜子，**0.9466 就是一个没有标尺的数字**。30 秒买一个参照系很便宜。
 >
 > 🗣 `zero point one zero seven` 逐位念，比 "point one oh seven" 清楚。
 
@@ -200,11 +200,11 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 中文对照：快讲三件事。我们测了 LLM 精排，**结果是变差**，这个结论留在了实验记录里。
 官方说过用户话术可能被改写，公开集测不出来，所以我们自己写了压力测试去量它。
 **而语言模型的价值就在那里显现了**——不是给商品排序，是听懂一个换了说法的用户。
-还剩 8 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
 38 条没排第 1 的会话里，**7 条是可证明不可能的**——意图卡相同、生成的对话一字不差，
 其中一条有 46 个孪生商品。**另外 31 条，正是"摆 10 件而不是 1 件"的代价——
 我们量过这个价钱，然后选择付它。**
-零依赖、零网络、零 API 成本，200 条会话 10 秒跑完。
+200 条会话 10 秒跑完。模型层只在规则失手时醒来——公开集上它一次都没触发过。
+把网线拔掉，分数不动。
 
 > 🗣 原稿用的 `information-theoretically impossible` 太长、不好念，
 > 已换成 **`provably impossible`**——意思不减，口播顺畅。
@@ -232,7 +232,7 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 | 必跑命令 | 幕 1/2 的两条 `trace_session.py`；其余用图，别在镜头前等 loading |
 | 需要做的图 | ✅ 全部完成，均已渲染验收：幕 3 [`prior-axis.svg`](assets/prior-axis.svg)　幕 4① [`withholding-ledger.svg`](assets/withholding-ledger.svg) |
 | **图的验收方法** | **必须整张渲染出来看，不能只看代码。** 首版就因为没看全，`6,846` 与 `570×`、`89.0%` 与 `4.3×` 两处数字重叠、底部结论超出画布右边被截断——从源码上完全看不出来。命令：`qlmanage -t -s 2400 -o <目录> <svg>` |
-| 数字核对 | 录制前跑一次 `python3 -m evaluator.local_evaluator` 确认仍是 **0.9694** |
+| 数字核对 | 录制前跑一次 `python3 -m evaluator.local_evaluator` 确认仍是 **0.9466** |
 | 时长 | 见下方「时长与删减日志」。**官方对视频时长无任何规定**——`competition_specification` 关于视频只有一句 "One demonstrated multi-turn session"。3 分钟是我们自己定的目标 |
 | 平台 | YouTube 公开（分工计划 §5） |
 
@@ -279,7 +279,7 @@ Turn 2  User:  For that, what matters is: polyester; 75% Polyester, 20% Rayon, 5
 
 ```bash
 cd "/Users/lyx/Project/TikTok TechJam/NiuLai"
-python3 -m evaluator.local_evaluator | grep technical_score   # 必须是 0.9694
+python3 -m evaluator.local_evaluator | grep technical_score   # 必须是 0.9466
 python3 scripts/check_guards.py                                # 必须全绿
 ```
 

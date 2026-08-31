@@ -7,6 +7,12 @@
 > **§3 是全篇最长的一章**（它同时扛了解析防线、路由和提问策略三件事）。若全篇超字数，
 > 这里最先能砍的是：提问策略段里 material/feature/colour 三个变体的具体数字（保留"全为负"即可）、
 > 以及本章最后的 Net effect 段（结论已在各段末尾出现过）。
+> ⚠️ **@LIN XIAOXIAO 一处数字要连带改**：现稿 §9 和你的第 5 章里的「withholding 值 **+0.0286**」
+> 是**先验重扫之前**（`POP_WEIGHT=2.0`）的 like-for-like 测量。在提交档的先验（2.75/0.95）下我实测
+> `EARLY_TOPK=1` = **0.971025**，即 **+0.0244**；`MIRROR_BONUS=0` = **0.943581**，即 −0.0031，
+> 两档 HitRate 都是 1.000。两个数都对，但**只有 +0.0244 是读者拿提交代码能跑出来的那个**。
+> 我在 §10/§11/§13 已经改成实测值并加了一句脚注说明，你的 §5 请对齐。
+>
 > §2 的配置开关表和会话走查**不要砍**——前者是官方 Reproducibility 要求的"non-obvious environment
 > variables"，后者对应 Final Deliverables 的 "One demonstrated multi-turn session"。
 
@@ -226,3 +232,286 @@ construction and everything under paraphrase (+0.012 to +0.090, §8); the questi
 most 0.004 to an oracle and we spend no further effort on it. Both conclusions come from measuring
 the layer in isolation rather than from the end-to-end number, which is the only reason we found the
 two parser defects at all.
+
+---
+
+# 8. Robustness: the risk we could not measure, so we built a way to measure it
+
+**The question this chapter answers:** the public set is saturated at HitRate 1.000. What evidence do
+we have that the private split will not collapse?
+
+The specification reserves the right to add natural-language paraphrasing to the simulator. Our
+entire pipeline rests on verbatim matching (§1), and the public set — with its fixed sentence
+templates — can never reveal that exposure. So we built the instrument ourselves: a paraphrase stress
+harness (`scripts/paraphrase_stress.py`) that wraps the Agent and rewrites the customer's utterances
+before the Agent sees them, **without modifying the evaluator**. Five graded levels isolate different
+failure modes.
+
+The first result was counter-intuitive and redirected the whole robustness effort:
+
+> Changing only the *sentence templates*, leaving every constraint string verbatim, cost **−0.183** —
+> 87% of the total damage. Changing the constraint values themselves cost only 0.028 more.
+
+The fragility was in template matching, not in verbatim matching. That reframed the fix from
+"understand meaning" to "extract fragments from unfamiliar sentences" — which, as §3 shows, needs no
+model at all for four levels out of five.
+
+| Parsing stack | L0 | L1 phrasing | L2 + short values | L3 + spec strings | L4 colon-free |
+|---|---|---|---|---|---|
+| Layer 1 only † | 0.9620 | 0.7792 | 0.7585 | 0.7523 | — |
+| + Layer 2 (offline path) | 0.9466 | 0.9259 | 0.8914 | 0.8765 | 0.8269 |
+| **+ Layer 3** (`LLM_PARSE=1`, shipped default) | **0.9466** | **0.9374** | **0.9230** | **0.9311** | **0.9168** |
+
+† Measured against the pre-08-31 ranking configuration (`EARLY_TOPK=1`, `POP_WEIGHT=2.0`). Rule
+salvage has no runtime switch, so it could not be re-measured under the shipped weights without
+editing code, which our stop rule forbids for measurement alone. The row is kept for its *shape* —
+template changes alone cost −0.183 — not for its absolute value.
+
+Two readings of that table are worth stating explicitly. **L3 scores above L2 once Layer 3 is on**:
+L3 rewrites long specification strings and pushes more turns into the model layer, whose verbatim
+extraction is cleaner than the rule layer's whole-sentence fallback, while L2's half-damaged values
+more often slip past the rule layer's own validation and never reach it. The curve is no longer
+monotonic in rewrite severity, and we would rather report that than smooth it. And **the offline row
+is the floor that matters for scoring**: if the organiser disables the network, the shipped agent is
+that middle row, bottoming at 0.8269.
+
+What this table is *not* is evidence about the private split. The levels come from a mechanical
+rewriter we wrote ourselves; they isolate which layer breaks first, which is exactly what we needed
+in order to know where to spend the last day, but they are not a sample from the private
+distribution. §11 states the range we expect and why we cannot narrow it.
+
+**Net effect.** The harness did not raise the headline number by a single point. It told us that our
+weakest layer was the parser rather than the index, which is why §3 exists in the form it does and
+why the dense route (§4) was never going to be the answer.
+
+---
+
+# 10. Method: how we decided what to keep
+
+**The question this chapter answers:** with 200 labelled sessions and no leaderboard, why should any
+number in this report be believed?
+
+Three rules, adopted after our first over-fitting scare and applied to every change since.
+
+**Stop where all three difficulty buckets improve together.** The popularity prior kept raising the
+score up to weight 6 — monotone improvement with no plateau is an over-fitting alarm, not a win. At
+weight 2.0 easy, medium and hard all improved; at 3.0 easy rose while medium fell. We stopped at 2.0
+and left 0.008 on the table.
+
+The rule then caught us. Removing early-turn withholding moved the optimum, we re-scanned, and the
+grid landed on `POP_WEIGHT=2.75`. Scanning its neighbourhood afterwards showed the peak is **one grid
+point wide** — 2.75 scores 0.9466 against 0.9457 at 2.8 and 0.9453 at 2.7, a margin of **+0.0009**,
+which is precisely the quantity the next paragraph calls indistinguishable from noise. Under
+paraphrase stress the advantage does not survive at all: averaged over L1–L3, weight 3.0 edges 2.75
+by 0.0002. So we report 2.75 as **where our grid landed, not as a value our stopping rule selected**,
+and we state plainly that anything in 2.5–3.0 is the same system — the whole range spans 0.0035. The
+second prior is a different case and we do claim it: `HAS_PRICE_WEIGHT=0.95` beats 1.0 by **0.0025**,
+comfortably above the threshold, and that total-score difference is the reason we give rather than a
+per-bucket argument that would itself sit inside the noise band.
+
+We are documenting this against our own interest, on the configuration we are actually submitting
+rather than on a decision safely in the past. It was found by a teammate re-deriving a number in the
+outline he had been handed, and it is in the report because a rule you suspend when it is
+inconvenient is not a rule.
+
+**Convert small gains into "how many sessions is that?"** With 200 samples one session is worth
+0.0007–0.0025. A tuning result of +0.0009 is one session flipping, and is indistinguishable from
+noise. We rejected three such improvements on this basis, and we applied the same threshold against
+ourselves when a mechanism we liked landed inside it.
+
+**Every assumption gets a failure simulation.** Three implementations of the withholding rule scored
+*identically* on the public set; only by simulating parser failure did we find that one of them
+degrades catastrophically (HitRate 0.950) while another exits safely. **Public-set parity is not
+evidence of equivalence** — a lesson that generalises well past this competition.
+
+**What we rejected, and where the evidence is.** The negative results below cost more hours than the
+positive ones and did more to shape the final system, because each of them closed a whole direction
+rather than a single parameter:
+
+| Rejected | Why | Detail |
+|---|---|---|
+| LLM listwise re-ranking | Ceiling is parity, not improvement; 106× the wall-clock | §7 |
+| Profile-based soft preferences | Permutation test 1.021×, p ≈ 0.18 — the information is not in the data | §6 |
+| Dense route in the default path | Negative in the shipped configuration; asymmetric OOM downside | §4 |
+| Entropy question policy | −0.0252, against an oracle ceiling of +0.00385 for the entire dimension | §3 |
+| Feature-count prior | Both tested weights scored below not having it at all | `experiments.md` #10b |
+| Cross-turn rejection filtering | Zero effect — sessions end before the stagnation signal can accumulate | §6, `experiments.md` #18 |
+| Early-turn withholding | Worth +0.0244 on the shipped code and genuinely effective, but it is the opposite of what a storefront should do | §5, §11 |
+
+**We then proved our own ceiling — and re-proved it after changing the default.** In the shipped
+configuration 38 of 200 sessions are not ranked first. A session-by-session comparison against the
+withholding configuration separates them cleanly: **7** are imperfectly ranked under both and are
+*information-theoretically indistinguishable* — the target shares an identical intent card and coarse
+category with other catalogue items, so the dialogue the simulator generates is byte-identical (one
+target has **46** such twins, which makes ranking it first a one-in-47 draw). The other **31** are
+precisely the sessions withholding used to rescue: the same 31 identified in §1, and the measured
+price of showing ten products instead of one. Against the withholding configuration the reachable MRR
+gain beyond those 7 was **0.00075** — below our own noise threshold. We closed the tuning phase there
+on 30 August, two days before the deadline, and spent the remainder on robustness and deliverables.
+Continuing would have bought noise and paid for it in private-set generalisation.
+
+---
+
+# 11. Limitations
+
+1. **Public-set saturation is not private-set safety.** HitRate is 1.000 on 200 public sessions; the
+   private 800 use different users and different targets. Our best proxy is the stress table in §8:
+   with the shipped configuration the curve runs 0.9466 → 0.9168 across five rewrite levels, so we
+   expect roughly **0.92–0.95** if paraphrasing is applied *and* the parsing layer has network
+   access. Without that access the same curve floors at **0.827**. We cannot narrow this further —
+   the levels are our own mechanical rewriter, not evidence about the private split.
+
+2. **Our ranker is a hand-weighted linear scorer.** With behavioural data at commercial scale the
+   natural successor is a learned ranker — LambdaMART or gradient-boosted trees over the same
+   features, plus a cross-encoder over the low-confidence tail. With 200 labelled sessions, learning
+   the weights would mean learning the public set; hand weights plus an explicit stopping rule (§10)
+   are the more honest instrument at this data volume. We regard this as a **data-regime decision,
+   not an architectural preference**, and it is the first thing we would change given real traffic.
+
+3. **One benchmark-shaped mechanism remains, behind a flag.** We removed the large one — early-turn
+   withholding — because it is the opposite of what a storefront should do (§5). Measured on the
+   shipped code, the two mechanisms span **0.9436 to 0.9710**: restoring withholding
+   (`EARLY_TOPK=1`) is worth **+0.0244**, and disabling the intent-card mirror bonus
+   (`MIRROR_BONUS=0`) costs **0.0031**. **HitRate is 1.000 at every point on that line**, which is
+   the honest form of the claim that our architecture does not depend on either of them (§9). The
+   larger −0.0286 figure quoted for withholding elsewhere in our logs is the like-for-like
+   measurement taken *before* the prior weights were re-scanned for a ten-item result list (§10);
+   both are correct comparisons, and this one is the one the shipped code reproduces.
+
+4. **The `other`-only question policy is a property of this simulator, not a claim about shopping.**
+   §3 bounds it rather than defending it, and the generalisable alternative ships behind
+   `ASK_POLICY=entropy` with its cost stated. We also do not implement Buying/Browsing routing, and
+   §3 explains why the two modes collapse here and §9 what a real deployment would need instead.
+
+5. **The dense route ships disabled and we can say precisely what that costs.** −0.0090 on the
+   public set in this configuration, positive only under paraphrase, against a memory footprint that
+   more than doubles (§4). We keep the code and the flag rather than deleting the negative result.
+
+6. **The parsing model is an enhancement, not a dependency.** `LLM_PARSE=1` is the default and makes
+   **zero calls** on unmodified phrasing; without credentials or network it trips a breaker after two
+   consecutive failures and falls back to rules, so the headline number is unchanged in a
+   network-restricted environment (§2). Its worst observed single call reached the then-45 s client
+   timeout and succeeded on retry, which is why the parsing layer now has its own 12 s budget against
+   a measured p95 of 1.0–5.6 s.
+
+7. **Latency was measured on one machine** (Apple M5). Absolute numbers will differ; the ~106× ratio
+   between the offline and LLM ranking paths should not.
+
+---
+
+# 12. How we worked, and who did what
+
+**The question this chapter answers:** four people and a two-and-a-half-day window — how were the
+decisions in this report actually made?
+
+**Decisions happened in writing, asynchronously, in the repository.** We ran the team on a single
+file, `team/留言板.md` — a message board committed alongside the code, readable and writable by both
+the humans and the AI assistants each of us worked with. Every substantive decision has a thread: the
+proposal, the objections, the data someone went and measured because of the objection, and a one-line
+verdict moved to an archive table when it closed. That archive is the audit trail for this report.
+Two examples of it working: the decision to ship the dense route disabled was **reopened** after a
+teammate produced paraphrase-stress data that contradicted the original ruling, and the second ruling
+kept the same outcome for an entirely different and better reason; and an external architecture
+review we solicited produced a "benchmark trick" objection that we answered not by arguing but by
+building the removable-mechanism configuration now reported in §9 and §11.
+
+**We logged the experiments we rejected next to the ones we kept.** `team/experiments.md` holds 66
+numbered entries. Roughly a third are negative, and §10 is written out of them.
+
+**We caught each other's mistakes, and the corrections are in the log.** Three that changed the
+deliverable: a figure whose bars overlapped its own labels, spotted by a teammate who rendered it
+instead of reading the source; a decision threshold with a gap in the middle of it, spotted by the
+person who had originally proposed the threshold and then retracted it in writing; and two batches of
+unit tests written in the wrong style, which were silently never collected — the first batch was
+found by hand, and a guard added because of it caught the second batch within two hours. That guard,
+`check_guards.py`, now fails the build if the number of defined test cases and the number of
+collected test cases disagree. **Turning a lesson into an automatic check rather than a note in a
+document is the pattern we would keep.**
+
+| | Module | Contribution |
+|---|---|---|
+| Chen Zhilong (A) | M1 dialogue control | Full-chain prototype (0.107 → 0.861), slot state machine, value normalisation, three-layer parsing defence and the parser-accuracy metric, intent-card mirror bonus and phrase recall, stability hardening, final configuration |
+| Zhou Junkai (B) | M2 retrieval | Dense route with non-displacing fusion, Recall@pool 1.000, recall regression tooling, the instrumented diagnostic that explained the route's sign change, independent verification of the numbers in this report |
+| Lin Xiaoxiao (C) | M3 ranking & generation | Prior-axis discovery (0.861 → 0.935), the withholding mechanism and the measurement that later justified removing it, paraphrase stress harness and rule salvage layer, LLM three-arm controlled experiment, cost disclosure, ceiling proof, CI and guard tooling |
+| Bi Yongqi (D) | M4 memory | Context distillation, profile lexicon, cross-turn signals, and the permutation test that closed the profile-signal question definitively |
+| — (E) | M5 evaluation | Absent for the event; responsibilities redistributed across the team |
+
+**In their own words** — one paragraph each, written by each author. The table alone reads as
+boilerplate, and this is where a reader can see whether the collaboration was real.
+
+> **Bi Yongqi (D):** Mine is the module that never moved the score, and the most useful thing I
+> produced was the proof of why it could not. After two wiring attempts failed I stopped testing
+> implementations and tested the premise instead: shuffling profiles across the same target items
+> showed the apparent 1.745x lift was an artefact of target items simply carrying more text, and
+> that the true profile-to-target association is 1.021x (p 0.18). That turned "maybe tune it
+> differently" into a closed question, and it is why this report gives what we disproved the same
+> weight as what we kept.
+
+> **Zhou Junkai (B):** My dense route never made it into the default path, and that is fine — its
+> real job turned out to be diagnostic, not additive. It proved Recall@pool was already 1.000, so
+> nothing downstream could gain from more candidates; and under paraphrase stress it showed where
+> robustness actually lives: +0.011 to +0.020 at L1-L3, nothing at L4, because L4 breaks in the
+> parser, not the index. We ship it off, one environment variable away, with the numbers on the
+> table instead of hidden.
+
+> **Lin Xiaoxiao (C):** The gain I am least proud of is the one that moved the score most. It did
+> not come from a better method — it came from noticing we had been asking the wrong question:
+> not *which product matches this sentence*, but *which product a real person actually bought*.
+> Two columns nobody had used answered it. What I would rather be judged on is what happened next.
+> The score kept rising as I pushed that weight higher, which is exactly what over-fitting looks
+> like, so we wrote down a stopping rule and left measurable points on the table. Then I built the
+> harness that measures the one risk the public set cannot show us, and finally proved our own
+> ceiling — seven of our imperfectly ranked sessions are provably unwinnable. Along the way my
+> teammates caught a chart whose bars overlapped and a decision threshold with a hole in the
+> middle. Both corrections are in the log, next to the results.
+
+> **Chen Zhilong (A):** I built the first working version, and the most useful thing I can say about
+> it is that it was wrong in ways the score did not show me. My override handling had a logic bug
+> that the public set was too forgiving to expose; two batches of tests I wrote were never executed
+> at all because I wrote them in the wrong style, and a teammate's guard caught the second batch
+> within hours of the first. The pattern in all three is the same: the end-to-end number is a
+> comfortable instrument, and comfortable instruments hide defects in the layer furthest upstream.
+> That is why I proposed scoring the parser on its own — if parsing drops a constraint, nothing
+> downstream can win it back, no matter how good the ranking is. The metric found two real defects
+> in my own code within an hour of existing, and fixing them lifted our hardest robustness level by
+> 0.02. I would rather be judged on that loop than on the prototype.
+
+---
+
+# 13. Reproduction
+
+Python **3.10+**. The submitted path requires **no third-party packages** — `requirements.txt`
+applies only to the optional dense route (`USE_DENSE=1`), which degrades to pure BM25 when its assets
+are absent. No API key and no network access are required; see the declaration in §2.
+
+```bash
+python3 scripts/prepare_catalog.py        # verify SHA-256, extract the catalogue (once)
+python3 -m evaluator.local_evaluator      # 0.9466 — standard library only, ~10 s
+```
+
+The second command is the whole submission: it runs our Agent in the official harness and prints the
+scored result. Everything below reproduces a specific claim in this report:
+
+```bash
+python3 scripts/check_guards.py           # red-line self-check + 30 unit tests
+python3 scripts/parser_accuracy.py        # §3 — parser accuracy in isolation
+python3 scripts/paraphrase_stress.py      # §8 — robustness across 5 stress levels
+python3 scripts/ceiling_diagnostic.py     # §10 — remaining headroom, decomposed
+python3 scripts/trace_session.py --id public_0002   # §2 — the session walked through above
+```
+
+Every default is an environment variable, listed with its shipped value in the table in §2 and
+documented in `src/config.py` beside the experiment that set it. To reproduce the two comparison
+configurations named in this report:
+
+```bash
+EARLY_TOPK=1   python3 -m evaluator.local_evaluator   # 0.9710 — withholding restored
+MIRROR_BONUS=0 python3 -m evaluator.local_evaluator   # 0.9436 — every benchmark-shaped mechanism
+                                                      #   off; HitRate stays 1.000
+```
+
+---
+
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (66 logged
+experiments, including the ones we rejected), [`COST_AND_LATENCY.md`](COST_AND_LATENCY.md), and the
+module handover documents under `team/`.*
