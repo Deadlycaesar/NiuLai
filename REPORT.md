@@ -23,13 +23,14 @@ benchmark-shaped mechanism after measuring exactly what it was worth — it cost
 shipped without it anyway (§5). And we give the things we disproved the same space as the things we
 kept, because the negative results are what told us where not to spend the remaining hours (§10).
 
-**Where to look, if you are short of time.** This report is organised so that each chapter opens
-with the question it answers and closes with its net effect — those two lines are enough to skip any
-chapter safely. If you read only three: **§3** is how the system survives a customer who does not
-phrase things the way the benchmark does, **§5** is the idea that moved the score most, and **§9**
-is what of this survives outside the benchmark. **§7** carries the required cost, latency and token
-disclosure; **§11** carries the limitations, including the one place we knowingly left measurable
-score on the table.
+**Where to look, if you are short of time.** The seven technical chapters, **§3 to §9**, each open
+with the question they answer and close with their net effect; those two lines are enough to skip
+any of them safely. §1 and §2 are context and configuration; §10 to §13 are method, limitations,
+contributions and reproduction. If you read only three: **§3** is how the system survives a customer
+who does not phrase things the way the benchmark does, **§5** is the idea that moved the score most,
+and **§9** is what of this survives outside the benchmark. **§7** carries the required cost, latency
+and token disclosure; **§11** carries the limitations, including the one place we knowingly left
+measurable score on the table.
 
 
 ---
