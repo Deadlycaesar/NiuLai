@@ -167,7 +167,7 @@ accordingly.
 
 **So the LLM is used to listen, not to rank.** Both LLM paths default to off; the offline path is the
 only default path. Model: GLM-4.7-Flash (free tier), swappable via `LLM_BASE_URL` / `LLM_MODEL`.
-Full latency/token/cost numbers: [`team/成本与延迟披露.md`](team/成本与延迟披露.md).
+Full latency/token/cost numbers: [`COST_AND_LATENCY.md`](COST_AND_LATENCY.md).
 
 ## 6. Method: how we decided what to keep
 
@@ -304,6 +304,6 @@ where judges look for evidence of real collaboration.
 
 ---
 
-*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (35 logged
-experiments, including the ones we rejected), [`team/成本与延迟披露.md`](team/成本与延迟披露.md),
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (66 logged
+experiments, including the ones we rejected), [`COST_AND_LATENCY.md`](COST_AND_LATENCY.md),
 and the four module handover documents under `team/`.*

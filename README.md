@@ -203,7 +203,7 @@ python3 scripts/trace_session.py --id public_0007   # inspect a single conversat
 official kit, that `starter/agent.py` remains a forwarding shell, that no credentials are committed,
 and that every declared test is actually collected.
 
-Latency, token usage and cost: [`team/成本与延迟披露.md`](team/成本与延迟披露.md).
+Latency, token usage and cost: [`COST_AND_LATENCY.md`](COST_AND_LATENCY.md).
 Written report: [`REPORT.md`](REPORT.md).
 
 ## Team
