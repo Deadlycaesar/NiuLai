@@ -232,10 +232,10 @@ Written report: [`REPORT.md`](REPORT.md).
 | Lin Xiaoxiao | M3 ranking & generation |
 | Bi Yongqi | M4 memory & context |
 
-Per-member contributions, in their own words: [`REPORT.md`](REPORT.md) §9.
+Per-member contributions, in their own words: [`REPORT.md`](REPORT.md) §12.
 
-- **Devpost:** TODO(A)
-- **Demo video:** TODO(A)
+- **Devpost:** https://devpost.com/software/newlife-project
+- **Demo video:** https://youtu.be/D2ZVI-OJOCE
 
 ## Data
 
