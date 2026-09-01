@@ -325,15 +325,15 @@ Both priors together resolved 86% of the forty-four tied sessions and took the s
 The popularity prior improved the score monotonically up to weight 6 with no plateau — an
 over-fitting alarm, not a win — so we kept only changes where all three difficulty buckets improved
 together. That selected weight 2.0 (exp 10c). Removing early-turn withholding (§3) moved the
-optimum, because all ten recommendations now score, so we re-swept (exp 39/43): 2.7 → 0.9453, **2.75
-→ 0.9466**, 2.8 → 0.9457, 3.0 → 0.9444.
+optimum, because all ten recommendations now score, so we re-swept (exp 44): 2.7 → 0.9453, **2.75 →
+0.9466**, 2.8 → 0.9457, 3.0 → 0.9444.
 
 The grid peaks at 2.75 and 2.75 is what we ship — but the peak is one grid point wide and stands
 **+0.0009** above its neighbour, precisely the figure our own noise rule (§10) calls one session
 flipping. Under paraphrase stress the ordering does not survive: at L1, at L3, and on the L1–L3
 mean, weight 3.0 equals or beats it. The advantage exists only on the unmodified two hundred
 sessions we tuned on. We therefore report 2.75 as where our grid landed, not as an optimum the
-stopping rule selected; anything in 2.5–3.0 is the same system to within 0.0035.
+stopping rule selected; anything in 2.7–3.0 is the same system to within 0.0022.
 `HAS_PRICE_WEIGHT=0.95` is different in kind — it beats 1.0 by 0.0025, above our threshold — so that
 one we do claim.
 
@@ -359,9 +359,9 @@ such twins. The other **thirty-one** are exactly the sessions withholding used t
 thirty-one from §1, and the measured price of §3. Beyond those seven the reachable MRR gain was
 0.00075, below our own noise threshold (exp 27).
 
-**Net effect:** the prior axis is worth 0.074, the largest single gain in the project — and it came
-not from a better method but from noticing we had asked the wrong question. The ceiling above it is
-seven sessions wide and provably closed.
+**Net effect:** the prior axis is worth 0.074, the largest single gain on the unmodified set — and
+it came not from a better method but from noticing we had asked the wrong question. The ceiling
+above it is seven sessions wide and provably closed.
 
 ---
 
@@ -654,7 +654,7 @@ generalisation.
 private 800 use different users and different targets. Our best proxy is the stress table in §8:
 with the shipped configuration the curve runs 0.9466 → 0.9168 across five rewrite levels, so we
 expect roughly **0.92–0.95** if paraphrasing is applied *and* the parsing layer has network access.
-Without that access the same curve floors at **0.827**. We cannot narrow this further — the levels
+Without that access the same curve floors at **0.8269**. We cannot narrow this further — the levels
 are our own mechanical rewriter, not evidence about the private split.
 
 2. **Our ranker is a hand-weighted linear scorer.** With behavioural data at commercial scale the
@@ -808,6 +808,6 @@ MIRROR_BONUS=0 python3 -m evaluator.local_evaluator   # 0.9436 — every benchma
 
 ---
 
-*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (66 logged
+*Evidence for every number in this report: [`team/experiments.md`](team/experiments.md) (76 logged
 experiments, including the ones we rejected), [`COST_AND_LATENCY.md`](COST_AND_LATENCY.md), and the
 module handover documents under `team/`.*
